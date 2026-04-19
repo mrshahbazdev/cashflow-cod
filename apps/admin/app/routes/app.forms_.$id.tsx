@@ -19,12 +19,7 @@ import {
   Frame,
   Banner,
 } from '@shopify/polaris';
-import {
-  DragDropContext,
-  Draggable,
-  Droppable,
-  type DropResult,
-} from '@hello-pangea/dnd';
+import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd';
 import { nanoid } from 'nanoid';
 import { useMemo, useState } from 'react';
 import { ClientOnly } from '../components/ClientOnly';
@@ -144,8 +139,7 @@ export default function FormBuilderRoute() {
   );
 
   const saving = nav.state !== 'idle' && nav.formData?.get('intent') === 'save';
-  const saved =
-    actionData && 'ok' in actionData && actionData.ok && 'savedAt' in actionData;
+  const saved = actionData && 'ok' in actionData && actionData.ok && 'savedAt' in actionData;
   const saveError = actionData && 'error' in actionData ? actionData.error : null;
 
   const [toastVisible, setToastVisible] = useState(false);
@@ -189,9 +183,7 @@ export default function FormBuilderRoute() {
   const patchField = (fieldId: string, patch: Partial<Field>) => {
     const steps = schema.steps.map((s) => ({
       ...s,
-      fields: s.fields.map((f) =>
-        f.id === fieldId ? ({ ...f, ...patch } as Field) : f,
-      ),
+      fields: s.fields.map((f) => (f.id === fieldId ? ({ ...f, ...patch } as Field) : f)),
     }));
     updateSchema({ ...schema, steps });
   };
@@ -223,7 +215,10 @@ export default function FormBuilderRoute() {
     updateSchema({
       ...schema,
       layout: 'multi_step',
-      steps: [...schema.steps, { id: nanoid(8), title: `Step ${schema.steps.length + 1}`, fields: [] }],
+      steps: [
+        ...schema.steps,
+        { id: nanoid(8), title: `Step ${schema.steps.length + 1}`, fields: [] },
+      ],
     });
   };
 
@@ -298,12 +293,7 @@ export default function FormBuilderRoute() {
                   <Text as="h3" variant="headingSm">
                     Form settings
                   </Text>
-                  <TextField
-                    label="Name"
-                    value={name}
-                    onChange={setName}
-                    autoComplete="off"
-                  />
+                  <TextField label="Name" value={name} onChange={setName} autoComplete="off" />
                   <TextField
                     label="Slug"
                     value={slug}
@@ -373,7 +363,8 @@ export default function FormBuilderRoute() {
                     Add field
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Click to add to {schema.layout === 'multi_step' ? 'the first step' : 'the form'}.
+                    Click to add to {schema.layout === 'multi_step' ? 'the first step' : 'the form'}
+                    .
                   </Text>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {fieldTypeSchema.options.map((t) => (

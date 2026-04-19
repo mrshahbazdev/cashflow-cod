@@ -19,13 +19,7 @@ import {
 import { useState } from 'react';
 import { authenticate } from '../shopify.server';
 import { getShopByDomain } from '../lib/install.server';
-import {
-  createForm,
-  deleteForm,
-  duplicateForm,
-  listForms,
-  updateForm,
-} from '../lib/forms.server';
+import { createForm, deleteForm, duplicateForm, listForms, updateForm } from '../lib/forms.server';
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -129,9 +123,7 @@ export default function FormsRoute() {
                 resourceName={{ singular: 'form', plural: 'forms' }}
                 items={forms}
                 renderItem={(f) => {
-                  const shortcutActions = [
-                    { content: 'Edit', url: `/app/forms/${f.id}` },
-                  ];
+                  const shortcutActions = [{ content: 'Edit', url: `/app/forms/${f.id}` }];
                   return (
                     <ResourceItem
                       id={f.id}
@@ -163,11 +155,7 @@ export default function FormsRoute() {
                             <RemixForm method="post">
                               <input type="hidden" name="intent" value="toggle-active" />
                               <input type="hidden" name="id" value={f.id} />
-                              <input
-                                type="hidden"
-                                name="active"
-                                value={f.isActive ? '0' : '1'}
-                              />
+                              <input type="hidden" name="active" value={f.isActive ? '0' : '1'} />
                               <Button submit size="slim">
                                 {f.isActive ? 'Deactivate' : 'Activate'}
                               </Button>

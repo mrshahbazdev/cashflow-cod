@@ -114,12 +114,22 @@ model Submission {
   form           Form             @relation(fields: [formId], references: [id], onDelete: Cascade)
   visitorId      String
   status         SubmissionStatus @default(PENDING)
+  fields         Json             @default("{}")
   fieldsEncrypted Bytes?
+  phone          String?
+  email          String?
+  ipAddress      String?
+  userAgent      String?
+  country        String?
+  riskScore      Int?
+  riskReasons    Json             @default("[]")
+  requiresOtp    Boolean          @default(false)
   abVariant      String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  order Order?
+  order     Order?
+  otpTokens OtpToken[]
 
   @@index([formId, createdAt])
   @@index([status])
@@ -196,16 +206,20 @@ enum Disposition {
 }
 
 model OtpToken {
-  id         String      @id @default(cuid())
-  orderId    String
-  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  channel    OtpChannel
-  code       String
-  verifiedAt DateTime?
-  expiresAt  DateTime
-  attempts   Int         @default(0)
-  createdAt  DateTime    @default(now())
+  id           String      @id @default(cuid())
+  submissionId String?
+  submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  orderId      String?
+  order        Order?      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  destination  String
+  channel      OtpChannel
+  code         String
+  verifiedAt   DateTime?
+  expiresAt    DateTime
+  attempts     Int         @default(0)
+  createdAt    DateTime    @default(now())
 
+  @@index([submissionId])
   @@index([orderId])
 }
 
