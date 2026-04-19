@@ -27,17 +27,18 @@ RUN pnpm --filter @cashflow-cod/admin db:generate
 RUN pnpm --filter @cashflow-cod/admin build
 
 # -------- Runner --------
-FROM node:22-alpine AS runner
+# Copy the full workspace (including each package/app's node_modules so that
+# pnpm workspace binaries like `prisma` and `remix-serve` resolve at runtime).
+FROM base AS runner
 ENV NODE_ENV=production
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable && corepack prepare pnpm@9.15.1 --activate
-WORKDIR /app
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/admin/build ./apps/admin/build
-COPY --from=build /app/apps/admin/package.json ./apps/admin/
-COPY --from=build /app/apps/admin/prisma ./apps/admin/prisma
-COPY --from=build /app/package.json ./
+COPY --from=build /app/pnpm-lock.yaml ./
 COPY --from=build /app/pnpm-workspace.yaml ./
+COPY --from=build /app/package.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages ./packages
+COPY --from=build /app/apps/admin/package.json ./apps/admin/package.json
+COPY --from=build /app/apps/admin/prisma ./apps/admin/prisma
+COPY --from=build /app/apps/admin/build ./apps/admin/build
+COPY --from=build /app/apps/admin/node_modules ./apps/admin/node_modules
 EXPOSE 3000
 CMD ["pnpm", "--filter", "@cashflow-cod/admin", "docker-start"]
