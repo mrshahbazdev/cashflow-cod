@@ -1,4 +1,4 @@
-/* Cashflow COD — storefront form widget styles (scaffold) */
+/* Cashflow COD — storefront form widget styles */
 .cashflow-cod-trigger {
   display: inline-flex;
   align-items: center;
@@ -12,12 +12,231 @@
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-
 .cashflow-cod-trigger:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
+.cashflow-cod-trigger:active { transform: translateY(0); }
 
-.cashflow-cod-trigger:active {
-  transform: translateY(0);
+.cashflow-cod-floating {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2147483600;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
+
+.cashflow-cod-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 17, 20, 0.55);
+  z-index: 2147483645;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.cashflow-cod-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.cashflow-cod-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 1.75rem;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 10px;
+}
+.cashflow-cod-close:hover { color: #111827; }
+
+.cashflow-cod-container {
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #111827;
+}
+.cashflow-cod-inline { padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px; }
+
+.cashflow-cod-title {
+  margin: 0 0 4px;
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+.cashflow-cod-subtitle {
+  margin: 0 0 16px;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+.cashflow-cod-legal {
+  margin-top: 16px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.cashflow-cod-stepper {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.cashflow-cod-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.cashflow-cod-step.active { color: #111827; font-weight: 600; }
+.cashflow-cod-step.done { background: #e7f5ef; color: #065f46; }
+.cashflow-cod-step-num {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #d1d5db;
+  color: #ffffff;
+  font-size: 0.7rem;
+}
+.cashflow-cod-step.done .cashflow-cod-step-num { background: #10b981; }
+
+.cashflow-cod-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.cashflow-cod-field { display: block; }
+.cashflow-cod-col-full { grid-column: span 6; }
+.cashflow-cod-col-half { grid-column: span 3; }
+.cashflow-cod-col-third { grid-column: span 2; }
+@media (max-width: 480px) {
+  .cashflow-cod-col-half, .cashflow-cod-col-third { grid-column: span 6; }
+}
+
+.cashflow-cod-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+.cashflow-cod-required { color: #dc2626; }
+
+.cashflow-cod-widget input[type="text"],
+.cashflow-cod-widget input[type="email"],
+.cashflow-cod-widget input[type="tel"],
+.cashflow-cod-widget select,
+.cashflow-cod-widget textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.cashflow-cod-widget input:focus,
+.cashflow-cod-widget select:focus,
+.cashflow-cod-widget textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 128, 96, 0.15);
+}
+
+.cashflow-cod-radio-group { display: flex; gap: 12px; flex-wrap: wrap; }
+.cashflow-cod-radio,
+.cashflow-cod-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.cashflow-cod-help {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.cashflow-cod-error {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #dc2626;
+}
+.cashflow-cod-banner {
+  padding: 8px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.cashflow-cod-divider { border: none; border-top: 1px solid #e5e7eb; margin: 8px 0; }
+.cashflow-cod-html { font-size: 0.9rem; color: #374151; }
+
+.cashflow-cod-nav {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.cashflow-cod-submit,
+.cashflow-cod-next,
+.cashflow-cod-prev {
+  padding: 10px 18px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.cashflow-cod-submit,
+.cashflow-cod-next {
+  background: #008060;
+  color: #ffffff;
+}
+.cashflow-cod-prev {
+  background: #ffffff;
+  color: #374151;
+  border-color: #d1d5db;
+}
+.cashflow-cod-submit:disabled,
+.cashflow-cod-next:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.cashflow-cod-success {
+  text-align: center;
+  padding: 20px 8px;
+}
+.cashflow-cod-success h3 { margin: 0 0 8px; font-size: 1.25rem; }
+.cashflow-cod-success p { margin: 0; color: #374151; }
+
+.cashflow-cod-otp { text-align: center; padding: 12px 4px; }
+.cashflow-cod-otp h3 { margin: 0 0 6px; font-size: 1.1rem; }
+.cashflow-cod-otp input {
+  width: 200px;
+  text-align: center;
+  letter-spacing: 0.5em;
+  padding: 12px 8px;
+  font-size: 1.25rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  margin: 12px auto;
+  display: block;
+}
+.cashflow-cod-otp .cashflow-cod-nav { justify-content: center; }

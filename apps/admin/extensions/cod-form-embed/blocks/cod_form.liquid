@@ -13,6 +13,7 @@
   data-trigger="{{ block.settings.trigger }}"
   data-accent="{{ block.settings.accent_color }}"
   data-language="{{ block.settings.language }}"
+  data-api="{{ block.settings.api_origin }}"
   data-product-id="{% if product %}{{ product.id }}{% endif %}"
   data-variant-id="{% if product %}{{ product.selected_or_first_available_variant.id }}{% endif %}"
 >
@@ -41,6 +42,13 @@
     {
       "type": "header",
       "content": "Form"
+    },
+    {
+      "type": "text",
+      "id": "api_origin",
+      "label": "API origin",
+      "default": "https://your-cashflow-cod-app.example",
+      "info": "The public URL where your Cashflow COD admin app is hosted (e.g. https://cashflow-cod.up.railway.app)."
     },
     {
       "type": "text",

@@ -24,9 +24,11 @@ export default function AppLayout() {
         </Link>
         <Link to="/app/forms">Forms</Link>
         <Link to="/app/orders">Orders</Link>
+        <Link to="/app/blocklist">Blocklist</Link>
+        <Link to="/app/agents">Team</Link>
+        <Link to="/app/analytics">Analytics</Link>
         <Link to="/app/shipping">Shipping</Link>
         <Link to="/app/integrations">Integrations</Link>
-        <Link to="/app/analytics">Analytics</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <Outlet />

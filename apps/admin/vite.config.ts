@@ -31,7 +31,9 @@ if (host === 'localhost') {
 const allowedHosts = [
   'localhost',
   ...(host && host !== 'localhost' ? [host] : []),
-  ...(process.env.ALLOWED_HOSTS?.split(',').map((h) => h.trim()).filter(Boolean) ?? []),
+  ...(process.env.ALLOWED_HOSTS?.split(',')
+    .map((h) => h.trim())
+    .filter(Boolean) ?? []),
 ];
 
 export default defineConfig({
