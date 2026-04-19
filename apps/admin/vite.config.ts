@@ -28,6 +28,12 @@ if (host === 'localhost') {
   };
 }
 
+const allowedHosts = [
+  'localhost',
+  ...(host && host !== 'localhost' ? [host] : []),
+  ...(process.env.ALLOWED_HOSTS?.split(',').map((h) => h.trim()).filter(Boolean) ?? []),
+];
+
 export default defineConfig({
   server: {
     port: Number(process.env.PORT || 3000),
@@ -35,6 +41,7 @@ export default defineConfig({
     fs: {
       allow: ['app', 'node_modules'],
     },
+    allowedHosts,
   },
   plugins: [
     remix({
