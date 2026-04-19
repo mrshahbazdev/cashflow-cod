@@ -1,0 +1,47 @@
+# Shopify app configuration
+# https://shopify.dev/docs/apps/tools/cli/configuration
+#
+# Replace client_id with the value from your Shopify Partner dashboard after
+# running `shopify app config link`.
+
+name = "cashflow-cod"
+handle = "cashflow-cod"
+client_id = ""
+application_url = "https://example.com/"
+embedded = true
+
+[access_scopes]
+scopes = "read_products,write_products,read_orders,write_orders,read_customers,write_customers,write_draft_orders,read_themes"
+
+[auth]
+redirect_urls = [
+  "https://example.com/auth/callback",
+  "https://example.com/auth/shopify/callback",
+  "https://example.com/api/auth/callback",
+]
+
+[webhooks]
+api_version = "2025-01"
+
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "/webhooks/app/uninstalled"
+
+[[webhooks.subscriptions]]
+topics = ["app/scopes_update"]
+uri = "/webhooks/app/scopes_update"
+
+[[webhooks.subscriptions]]
+topics = ["shop/update"]
+uri = "/webhooks/shop/update"
+
+[[webhooks.subscriptions]]
+topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "/webhooks/gdpr"
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+
+[pos]
+embedded = false
+
+[build]
+include_config_on_deploy = true

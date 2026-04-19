@@ -1,0 +1,13 @@
+{
+  "name": "Cashflow COD Form",
+  "settings": {
+    "form_slug": {
+      "label": "Form slug",
+      "info": "The slug of the form you configured in the Cashflow COD admin."
+    },
+    "button_label": {
+      "label": "Button label",
+      "default": "Buy with Cash on Delivery"
+    }
+  }
+}

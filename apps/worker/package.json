@@ -1,0 +1,26 @@
+{
+  "name": "@cashflow-cod/worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Cashflow COD — BullMQ background workers (OTP, webhooks, courier booking, RTO scoring)",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no-op'"
+  },
+  "dependencies": {
+    "@cashflow-cod/couriers": "workspace:*",
+    "@cashflow-cod/messaging": "workspace:*",
+    "@cashflow-cod/shared-types": "workspace:*",
+    "bullmq": "^5.34.7",
+    "ioredis": "^5.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

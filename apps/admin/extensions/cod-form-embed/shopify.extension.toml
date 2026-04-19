@@ -1,0 +1,11 @@
+name = "cod-form-embed"
+type = "theme"
+api_version = "2025-01"
+
+[capabilities]
+network_access = true
+
+[[extensions]]
+type = "theme"
+name = "Cashflow COD form embed"
+handle = "cod-form-embed"
