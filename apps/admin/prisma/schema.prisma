@@ -1,0 +1,387 @@
+// Cashflow COD — Prisma schema v1
+// https://www.prisma.io/docs
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Shopify session storage (required by @shopify/shopify-app-session-storage-prisma)
+// -----------------------------------------------------------------------------
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+
+  @@index([shop])
+}
+
+// -----------------------------------------------------------------------------
+// Core app models
+// -----------------------------------------------------------------------------
+model Shop {
+  id           String   @id @default(cuid())
+  domain       String   @unique
+  plan         Plan     @default(FREE)
+  settings     Json     @default("{}")
+  timezone     String   @default("UTC")
+  installedAt  DateTime @default(now())
+  uninstalledAt DateTime?
+  updatedAt    DateTime @updatedAt
+
+  forms           Form[]
+  orders          Order[]
+  blocklist       Blocklist[]
+  agents          Agent[]
+  pixels          Pixel[]
+  webhooks        WebhookSubscription[]
+  abTests         ABTest[]
+  courierAccounts CourierAccount[]
+
+  @@index([domain])
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  SCALE
+  ENTERPRISE
+}
+
+model Form {
+  id         String     @id @default(cuid())
+  shopId     String
+  shop       Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name       String
+  slug       String
+  layout     FormLayout @default(POPUP)
+  placement  String     @default("product") // product | cart | landing | custom
+  schema     Json       @default("{}")      // form field definitions (Zod-validated JSON)
+  isActive   Boolean    @default(true)
+  abTestId   String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  submissions Submission[]
+  orders      Order[]
+  views       FormView[]
+
+  @@unique([shopId, slug])
+  @@index([shopId])
+}
+
+enum FormLayout {
+  POPUP
+  EMBEDDED
+  SLIDEOVER
+  LANDING
+}
+
+model FormView {
+  id         String   @id @default(cuid())
+  formId     String
+  form       Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  visitorId  String
+  ip         String?
+  userAgent  String?
+  country    String?
+  referrer   String?
+  createdAt  DateTime @default(now())
+
+  @@index([formId, createdAt])
+}
+
+model Submission {
+  id             String           @id @default(cuid())
+  formId         String
+  form           Form             @relation(fields: [formId], references: [id], onDelete: Cascade)
+  visitorId      String
+  status         SubmissionStatus @default(PENDING)
+  fieldsEncrypted Bytes?
+  abVariant      String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  order Order?
+
+  @@index([formId, createdAt])
+  @@index([status])
+}
+
+enum SubmissionStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  CONVERTED
+  ABANDONED
+}
+
+model Order {
+  id               String       @id @default(cuid())
+  shopId           String
+  shop             Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopifyOrderId   String?      @unique
+  shopifyOrderGid  String?
+  submissionId     String?      @unique
+  submission       Submission?  @relation(fields: [submissionId], references: [id])
+  formId           String?
+  form             Form?        @relation(fields: [formId], references: [id])
+  phone            String?
+  phoneNormalized  String?
+  email            String?
+  customerName     String?
+  addressLine1     String?
+  addressLine2     String?
+  city             String?
+  region           String?
+  postalCode       String?
+  country          String?
+  lineItems        Json         @default("[]")
+  upsells          Json         @default("[]")
+  subtotal         Decimal?     @db.Decimal(14, 2)
+  codFee           Decimal?     @db.Decimal(14, 2)
+  discount         Decimal?     @db.Decimal(14, 2)
+  total            Decimal?     @db.Decimal(14, 2)
+  currency         String?
+  riskScore        Int?
+  riskReasons      Json         @default("[]")
+  disposition      Disposition  @default(UNASSIGNED)
+  agentId          String?
+  agent            Agent?       @relation(fields: [agentId], references: [id])
+  attempts         Int          @default(0)
+  nextFollowUpAt   DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  otps             OtpToken[]
+  messages         Message[]
+  agentActions     AgentAction[]
+  courierBookings  CourierBooking[]
+
+  @@index([shopId, createdAt])
+  @@index([phoneNormalized])
+  @@index([disposition])
+  @@index([riskScore])
+}
+
+enum Disposition {
+  UNASSIGNED
+  NEW
+  CONFIRMED
+  RESCHEDULED
+  NO_ANSWER
+  WRONG_NUMBER
+  FAKE
+  CANCELLED
+  SHIPPED
+  DELIVERED
+  RETURNED
+}
+
+model OtpToken {
+  id         String      @id @default(cuid())
+  orderId    String
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  channel    OtpChannel
+  code       String
+  verifiedAt DateTime?
+  expiresAt  DateTime
+  attempts   Int         @default(0)
+  createdAt  DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+enum OtpChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+  VOICE
+}
+
+model Blocklist {
+  id        String        @id @default(cuid())
+  shopId    String?
+  shop      Shop?         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  type      BlocklistType
+  value     String
+  valueHash String
+  reason    String?
+  expiresAt DateTime?
+  createdAt DateTime      @default(now())
+
+  @@unique([shopId, type, valueHash])
+  @@index([valueHash, type])
+}
+
+enum BlocklistType {
+  PHONE
+  IP
+  EMAIL
+  POSTAL_CODE
+  DEVICE
+}
+
+model Agent {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  userId      String
+  name        String
+  email       String?
+  role        AgentRole @default(AGENT)
+  isActive    Boolean  @default(true)
+  lastSeenAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders       Order[]
+  agentActions AgentAction[]
+
+  @@unique([shopId, userId])
+}
+
+enum AgentRole {
+  OWNER
+  MANAGER
+  AGENT
+  VIEWER
+}
+
+model AgentAction {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  actionType      String
+  note            String?
+  nextFollowUpAt  DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model CourierAccount {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  courier    String   // postex | leopards | tcs | trax | mp | blueex | swyft | call | daewoo | aramex | shiprocket | dhl | custom
+  label      String
+  isActive   Boolean  @default(true)
+  credentials Json    @default("{}")
+  settings   Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  bookings CourierBooking[]
+
+  @@unique([shopId, courier])
+}
+
+model CourierBooking {
+  id                  String          @id @default(cuid())
+  orderId             String
+  order               Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierAccountId    String
+  courierAccount      CourierAccount  @relation(fields: [courierAccountId], references: [id])
+  consignmentNumber   String?
+  labelUrl            String?
+  trackingUrl         String?
+  status              String          @default("pending")
+  trackingEvents      Json            @default("[]")
+  bookedAt            DateTime?
+  lastSyncedAt        DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([consignmentNumber])
+}
+
+model Message {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  channel      String   // sms | whatsapp | email | voice
+  direction    String   // outbound | inbound
+  templateId   String?
+  provider     String?
+  providerId   String?
+  payload      Json     @default("{}")
+  status       String   @default("queued")
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  failedAt     DateTime?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([channel, status])
+}
+
+model ABTest {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  entityType String   // form | upsell | button | headline
+  entityId   String
+  variants   Json     @default("[]")
+  metric     String   @default("conversion_rate")
+  winner     String?
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+
+  @@index([shopId, entityType])
+}
+
+model WebhookSubscription {
+  id             String    @id @default(cuid())
+  shopId         String
+  shop           Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  topic          String
+  url            String
+  secret         String
+  isActive       Boolean   @default(true)
+  lastDeliveryAt DateTime?
+  lastStatusCode Int?
+  failures       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([shopId, topic])
+}
+
+model Pixel {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  provider    String   // meta | tiktok | google | snapchat | pinterest
+  pixelId     String
+  accessToken String?
+  capiEnabled Boolean  @default(false)
+  testCode    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, provider, pixelId])
+}

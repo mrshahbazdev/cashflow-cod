@@ -1,0 +1,29 @@
+{
+  "name": "cashflow-cod",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Advanced Cash-on-Delivery order form app for Shopify",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.1",
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream --filter=./apps/* dev",
+    "build": "pnpm -r --filter=./packages/* --filter=./apps/* build",
+    "lint": "pnpm -r --parallel --stream lint",
+    "typecheck": "pnpm -r --parallel --stream typecheck",
+    "test": "pnpm -r --parallel --stream test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "clean": "pnpm -r exec rm -rf node_modules dist build .turbo .cache && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}
