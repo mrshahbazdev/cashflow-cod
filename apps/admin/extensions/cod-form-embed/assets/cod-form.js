@@ -642,6 +642,28 @@
     document.body.appendChild(btn);
   }
 
+  function registerSw(cfg) {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      var swUrl = (cfg.assetBase || '') + '/cod-form-sw.js';
+      navigator.serviceWorker
+        .register(swUrl, { scope: '/' })
+        .then(function (reg) {
+          if (reg && reg.active) {
+            reg.active.postMessage({ type: 'drain-queue' });
+          }
+        })
+        .catch(function () {});
+      window.addEventListener('online', function () {
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          if (reg && reg.active) reg.active.postMessage({ type: 'drain-queue' });
+        });
+      });
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
   function boot() {
     var cfg = readConfig();
     if (!cfg) return;
@@ -656,6 +678,7 @@
       return;
     }
 
+    registerSw(cfg);
     styleAccent(cfg.accent);
 
     fetchSchema(cfg).then(

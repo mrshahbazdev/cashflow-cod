@@ -45,6 +45,11 @@ model Shop {
   uninstalledAt DateTime?
   updatedAt     DateTime  @updatedAt
 
+  merchantGroupId String?
+  merchantGroup   MerchantGroup? @relation(fields: [merchantGroupId], references: [id], onDelete: SetNull)
+
+  fraudGraphOptIn Boolean @default(false)
+
   forms           Form[]
   orders          Order[]
   blocklist       Blocklist[]
@@ -53,8 +58,11 @@ model Shop {
   webhooks        WebhookSubscription[]
   abTests         ABTest[]
   courierAccounts CourierAccount[]
+  rtoStats        RtoStat[]
+  fraudReports    FraudGraphReport[]
 
   @@index([domain])
+  @@index([merchantGroupId])
 }
 
 enum Plan {
@@ -500,4 +508,98 @@ model Pixel {
   updatedAt   DateTime @updatedAt
 
   @@unique([shopId, provider, pixelId])
+}
+
+// -----------------------------------------------------------------------------
+// Phase 3 — moat features (fraud graph, RTO analytics, merchant groups, templates)
+// -----------------------------------------------------------------------------
+
+/// Cross-store shared blacklist network. Shops opt-in to report + consume entries.
+/// `valueHash` is a SHA-256 of the normalized identifier so PII never leaves the shop.
+model FraudGraphEntry {
+  id           String   @id @default(cuid())
+  type         BlocklistType
+  valueHash    String
+  reportCount  Int      @default(1)
+  offenderHits Int      @default(0) // confirmed RTO / fake dispositions linked
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  severity     Int      @default(1) // 1..5 — computed from reports/hits
+  notes        String?
+
+  reports FraudGraphReport[]
+
+  @@unique([type, valueHash])
+  @@index([valueHash])
+  @@index([severity])
+}
+
+/// Per-shop report rows feeding into the fraud graph aggregates.
+model FraudGraphReport {
+  id              String   @id @default(cuid())
+  entryId         String
+  entry           FraudGraphEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  reason          String
+  disposition     String?
+  linkedOrderId   String?
+  createdAt       DateTime @default(now())
+
+  @@index([entryId])
+  @@index([shopId, createdAt])
+}
+
+/// Aggregated RTO metric per shop × dimension × bucket date.
+/// `dimension` ∈ city | courier | product | sku | hour | day_of_week | country
+model RtoStat {
+  id           String   @id @default(cuid())
+  shopId       String
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  dimension    String
+  dimensionKey String
+  bucketDate   DateTime @db.Date
+  totalOrders  Int      @default(0)
+  rtoOrders    Int      @default(0)
+  deliveredOrders Int   @default(0)
+  confirmedOrders Int   @default(0)
+  rtoRate      Decimal  @default(0) @db.Decimal(6, 4)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([shopId, dimension, dimensionKey, bucketDate])
+  @@index([shopId, dimension, bucketDate])
+}
+
+/// Multi-store ownership — one dashboard, many shops.
+model MerchantGroup {
+  id        String   @id @default(cuid())
+  name      String
+  ownerEmail String?
+  plan      Plan     @default(PRO)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shops Shop[]
+
+  @@index([ownerEmail])
+}
+
+/// Seed catalog of industry/region form templates ("marketplace").
+model FormTemplate {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  category    String // apparel | electronics | food | services | pharmacy | other
+  region      String? // PK | IN | MENA | GLOBAL
+  language    String   @default("en")
+  description String?
+  schema      Json
+  previewUrl  String?
+  isFeatured  Boolean  @default(false)
+  installCount Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([region])
 }
