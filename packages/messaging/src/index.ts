@@ -47,3 +47,5 @@ export function generateOtp(length = 6): string {
 
 export { consoleAdapter } from './adapters/console.js';
 export { twilioAdapter } from './adapters/twilio.js';
+export { twilioVoiceAdapter } from './voice.js';
+export type { VoiceAdapter, PlaceCallRequest, PlaceCallResult } from './voice.js';

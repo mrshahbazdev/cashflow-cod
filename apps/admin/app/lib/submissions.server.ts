@@ -2,6 +2,8 @@ import type { Form, Shop } from '@prisma/client';
 import type { Field, FormSchema } from '@cashflow-cod/form-schema';
 import prisma from '../db.server';
 import { createDraftOrderForSubmission } from './shopify-orders.server';
+import { scoreRisk, recordRiskEvaluation, type RiskFeatures } from './risk.server';
+import { markAbandonmentConverted } from './abandoned.server';
 
 type SubmitInput = {
   form: Form & { shop: Shop };
@@ -60,7 +62,24 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
     return { ok: false, error: 'This order cannot be placed. Please contact support.' };
   }
 
-  const risk = await computeRiskScore(form.shopId, { phone: phoneNormalized, ip });
+  const features = await buildRiskFeatures(form.shopId, {
+    phone: phoneNormalized,
+    ip,
+    address: (allFields.find((f) => f.type === 'address')?.key
+      ? (data[allFields.find((f) => f.type === 'address')!.key] as string)
+      : null) ?? null,
+    city: (allFields.find((f) => f.type === 'city')?.key
+      ? (data[allFields.find((f) => f.type === 'city')!.key] as string)
+      : null) ?? null,
+    postalCode: (allFields.find((f) => f.type === 'postal_code')?.key
+      ? (data[allFields.find((f) => f.type === 'postal_code')!.key] as string)
+      : null) ?? null,
+    country: (allFields.find((f) => f.type === 'country')?.key
+      ? (data[allFields.find((f) => f.type === 'country')!.key] as string)
+      : null) ?? null,
+    userAgent,
+  });
+  const risk = await scoreRisk(features);
   const requiresOtp = shouldRequireOtp(form.shop, risk.score);
 
   const submission = await prisma.submission.create({
@@ -79,6 +98,13 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
       abVariant: abVariant ?? undefined,
     },
   });
+
+  await recordRiskEvaluation({
+    submissionId: submission.id,
+    features,
+    result: risk,
+  });
+  await markAbandonmentConverted(visitorId, form.id);
 
   if (requiresOtp) {
     return {
@@ -175,47 +201,65 @@ async function isBlocked(
   return Boolean(hit);
 }
 
-type RiskResult = { score: number; reasons: Array<{ code: string; message: string }> };
-
-async function computeRiskScore(
+async function buildRiskFeatures(
   shopId: string,
-  keys: { phone: string | null; ip: string | null },
-): Promise<RiskResult> {
-  const reasons: RiskResult['reasons'] = [];
-  let score = 0;
-
+  keys: {
+    phone: string | null;
+    ip: string | null;
+    address: string | null;
+    city: string | null;
+    postalCode: string | null;
+    country: string | null;
+    userAgent: string | null;
+  },
+): Promise<RiskFeatures> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  if (keys.phone) {
-    const count = await prisma.submission.count({
-      where: {
-        phone: keys.phone,
-        createdAt: { gte: since },
-        form: { shopId },
-      },
-    });
-    if (count >= 3) {
-      score += Math.min(50, count * 10);
-      reasons.push({
-        code: 'phone_velocity',
-        message: `${count} submissions in 24h from this phone`,
-      });
-    }
-  }
-  if (keys.ip) {
-    const count = await prisma.submission.count({
-      where: {
-        ipAddress: keys.ip,
-        createdAt: { gte: since },
-        form: { shopId },
-      },
-    });
-    if (count >= 5) {
-      score += Math.min(40, count * 5);
-      reasons.push({ code: 'ip_velocity', message: `${count} submissions in 24h from this IP` });
-    }
-  }
+  const [phoneCount, ipCount, prevOrders] = await Promise.all([
+    keys.phone
+      ? prisma.submission.count({
+          where: { phone: keys.phone, createdAt: { gte: since }, form: { shopId } },
+        })
+      : Promise.resolve(0),
+    keys.ip
+      ? prisma.submission.count({
+          where: { ipAddress: keys.ip, createdAt: { gte: since }, form: { shopId } },
+        })
+      : Promise.resolve(0),
+    keys.phone
+      ? prisma.order.findMany({
+          where: { phoneNormalized: keys.phone, shopId },
+          select: { disposition: true },
+          take: 10,
+        })
+      : Promise.resolve([]),
+  ]);
+  const rtoPrev = prevOrders.filter((o) => o.disposition === 'RETURNED').length;
+  const prevRtoRate = prevOrders.length ? rtoPrev / prevOrders.length : 0;
 
-  return { score: Math.min(100, score), reasons };
+  const now = new Date();
+  const ua = (keys.userAgent ?? '').toLowerCase();
+  const deviceType = /mobile|android|iphone|ipad/.test(ua)
+    ? 'mobile'
+    : /tablet|ipad/.test(ua)
+      ? 'tablet'
+      : 'desktop';
+
+  return {
+    phone: keys.phone,
+    ip: keys.ip,
+    address: keys.address,
+    city: keys.city,
+    postalCode: keys.postalCode,
+    country: keys.country,
+    orderAmount: null,
+    phoneVelocity24h: phoneCount,
+    ipVelocity24h: ipCount,
+    hourOfDay: now.getUTCHours(),
+    dayOfWeek: (now.getUTCDay() + 6) % 7,
+    deviceType,
+    isRepeatCustomer: prevOrders.length > 0,
+    prevRtoRate,
+  };
 }
 
 function shouldRequireOtp(shop: Shop, riskScore: number): boolean {

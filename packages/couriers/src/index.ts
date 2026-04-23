@@ -62,3 +62,21 @@ export class CourierRegistry {
 }
 
 export const courierRegistry = new CourierRegistry();
+
+export { postexAdapter } from './adapters/postex.js';
+export { leopardsAdapter } from './adapters/leopards.js';
+export { tcsAdapter } from './adapters/tcs.js';
+export { traxAdapter } from './adapters/trax.js';
+export { blueexAdapter } from './adapters/blueex.js';
+
+import { postexAdapter } from './adapters/postex.js';
+import { leopardsAdapter } from './adapters/leopards.js';
+import { tcsAdapter } from './adapters/tcs.js';
+import { traxAdapter } from './adapters/trax.js';
+import { blueexAdapter } from './adapters/blueex.js';
+
+courierRegistry.register(postexAdapter);
+courierRegistry.register(leopardsAdapter);
+courierRegistry.register(tcsAdapter);
+courierRegistry.register(traxAdapter);
+courierRegistry.register(blueexAdapter);

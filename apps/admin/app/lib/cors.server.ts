@@ -15,3 +15,11 @@ export function withCors(response: Response): Response {
 export function preflight(): Response {
   return withCors(new Response(null, { status: 204 }));
 }
+
+export function corsHeaders(_request: Request): HeadersInit {
+  return { ...CORS_HEADERS };
+}
+
+export function handleOptions(_request: Request): Response {
+  return preflight();
+}
