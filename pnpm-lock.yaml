@@ -29,6 +29,9 @@ importers:
       '@cashflow-cod/messaging':
         specifier: workspace:*
         version: link:../../packages/messaging
+      '@cashflow-cod/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@cashflow-cod/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -167,6 +170,16 @@ importers:
         version: 5.9.3
 
   packages/messaging:
+    dependencies:
+      '@cashflow-cod/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/payments:
     dependencies:
       '@cashflow-cod/shared-types':
         specifier: workspace:*

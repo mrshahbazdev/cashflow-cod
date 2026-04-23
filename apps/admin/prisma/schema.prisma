@@ -45,6 +45,14 @@ model Shop {
   uninstalledAt DateTime?
   updatedAt     DateTime  @updatedAt
 
+  merchantGroupId String?
+  merchantGroup   MerchantGroup? @relation(fields: [merchantGroupId], references: [id], onDelete: SetNull)
+
+  fraudGraphOptIn Boolean @default(false)
+
+  defaultLanguage String  @default("en")
+  enabledLanguages Json   @default("[\"en\"]")
+
   forms           Form[]
   orders          Order[]
   blocklist       Blocklist[]
@@ -53,8 +61,15 @@ model Shop {
   webhooks        WebhookSubscription[]
   abTests         ABTest[]
   courierAccounts CourierAccount[]
+  rtoStats        RtoStat[]
+  fraudReports    FraudGraphReport[]
+  inboxThreads    InboxThread[]
+  landingPages    LandingPage[]
+  paymentAccounts PaymentProviderAccount[]
+  gdprExports     GdprExport[]
 
   @@index([domain])
+  @@index([merchantGroupId])
 }
 
 enum Plan {
@@ -74,16 +89,19 @@ model Form {
   layout    FormLayout @default(POPUP)
   placement String     @default("product") // product | cart | landing | custom
   schema    Json       @default("{}") // form field definitions (Zod-validated JSON)
+  translations Json    @default("{}") // { "ur": {"label.phone": "..."}, ... }
+  direction String     @default("ltr") // ltr | rtl
   isActive  Boolean    @default(true)
   abTestId  String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  submissions Submission[]
-  orders      Order[]
-  views       FormView[]
-  upsells     Upsell[]
-  abandoned   AbandonedForm[]
+  submissions   Submission[]
+  orders        Order[]
+  views         FormView[]
+  upsells       Upsell[]
+  abandoned     AbandonedForm[]
+  landingPages  LandingPage[]
 
   @@unique([shopId, slug])
   @@index([shopId])
@@ -188,6 +206,8 @@ model Order {
   courierBookings CourierBooking[]
   callSessions    CallSession[]
   riskEvaluations RiskEvaluation[]
+  paymentAdvances PaymentAdvance[]
+  inboxThread     InboxThread?
 
   @@index([shopId, createdAt])
   @@index([phoneNormalized])
@@ -338,11 +358,16 @@ model Message {
   id           String    @id @default(cuid())
   orderId      String
   order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  threadId     String?
+  thread       InboxThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
   channel      String // sms | whatsapp | email | voice
   direction    String // outbound | inbound
   templateId   String?
   provider     String?
   providerId   String?
+  fromAddress  String?
+  toAddress    String?
+  body         String?
   payload      Json      @default("{}")
   status       String    @default("queued")
   sentAt       DateTime?
@@ -354,21 +379,41 @@ model Message {
 
   @@index([orderId, createdAt])
   @@index([channel, status])
+  @@index([threadId, createdAt])
 }
 
 model ABTest {
   id         String    @id @default(cuid())
   shopId     String
   shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name       String    @default("")
   entityType String // form | upsell | button | headline
   entityId   String
-  variants   Json      @default("[]")
+  variants   Json      @default("[]") // [{ key, label, weight, schemaOverride? }]
   metric     String    @default("conversion_rate")
+  status     String    @default("running") // running | stopped | completed
   winner     String?
   startedAt  DateTime  @default(now())
   endedAt    DateTime?
 
+  exposures ABTestExposure[]
+
   @@index([shopId, entityType])
+}
+
+/// One row per (test, variant, day) aggregating views + conversions.
+model ABTestExposure {
+  id            String   @id @default(cuid())
+  abTestId      String
+  abTest        ABTest   @relation(fields: [abTestId], references: [id], onDelete: Cascade)
+  variantKey    String
+  bucketDate    DateTime @db.Date
+  views         Int      @default(0)
+  conversions   Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@unique([abTestId, variantKey, bucketDate])
+  @@index([abTestId, bucketDate])
 }
 
 model WebhookSubscription {
@@ -500,4 +545,214 @@ model Pixel {
   updatedAt   DateTime @updatedAt
 
   @@unique([shopId, provider, pixelId])
+}
+
+// -----------------------------------------------------------------------------
+// Phase 3 — moat features (fraud graph, RTO analytics, merchant groups, templates)
+// -----------------------------------------------------------------------------
+
+/// Cross-store shared blacklist network. Shops opt-in to report + consume entries.
+/// `valueHash` is a SHA-256 of the normalized identifier so PII never leaves the shop.
+model FraudGraphEntry {
+  id           String   @id @default(cuid())
+  type         BlocklistType
+  valueHash    String
+  reportCount  Int      @default(1)
+  offenderHits Int      @default(0) // confirmed RTO / fake dispositions linked
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  severity     Int      @default(1) // 1..5 — computed from reports/hits
+  notes        String?
+
+  reports FraudGraphReport[]
+
+  @@unique([type, valueHash])
+  @@index([valueHash])
+  @@index([severity])
+}
+
+/// Per-shop report rows feeding into the fraud graph aggregates.
+model FraudGraphReport {
+  id              String   @id @default(cuid())
+  entryId         String
+  entry           FraudGraphEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  reason          String
+  disposition     String?
+  linkedOrderId   String?
+  createdAt       DateTime @default(now())
+
+  @@index([entryId])
+  @@index([shopId, createdAt])
+}
+
+/// Aggregated RTO metric per shop × dimension × bucket date.
+/// `dimension` ∈ city | courier | product | sku | hour | day_of_week | country
+model RtoStat {
+  id           String   @id @default(cuid())
+  shopId       String
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  dimension    String
+  dimensionKey String
+  bucketDate   DateTime @db.Date
+  totalOrders  Int      @default(0)
+  rtoOrders    Int      @default(0)
+  deliveredOrders Int   @default(0)
+  confirmedOrders Int   @default(0)
+  rtoRate      Decimal  @default(0) @db.Decimal(6, 4)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([shopId, dimension, dimensionKey, bucketDate])
+  @@index([shopId, dimension, bucketDate])
+}
+
+/// Multi-store ownership — one dashboard, many shops.
+model MerchantGroup {
+  id        String   @id @default(cuid())
+  name      String
+  ownerEmail String?
+  plan      Plan     @default(PRO)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shops Shop[]
+
+  @@index([ownerEmail])
+}
+
+/// Seed catalog of industry/region form templates ("marketplace").
+model FormTemplate {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  category    String // apparel | electronics | food | services | pharmacy | other
+  region      String? // PK | IN | MENA | GLOBAL
+  language    String   @default("en")
+  description String?
+  schema      Json
+  previewUrl  String?
+  isFeatured  Boolean  @default(false)
+  installCount Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([region])
+}
+
+// -----------------------------------------------------------------------------
+// Phase 4 — WhatsApp inbox, payments, landing pages, GDPR
+// -----------------------------------------------------------------------------
+
+/// 2-way WhatsApp / SMS conversation thread. One per (shop, customer phone).
+model InboxThread {
+  id             String    @id @default(cuid())
+  shopId         String
+  shop           Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  channel        String    @default("whatsapp") // whatsapp | sms | email
+  customerPhone  String?
+  customerEmail  String?
+  customerName   String?
+  orderId        String?   @unique
+  order          Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  lastMessageAt  DateTime  @default(now())
+  lastDirection  String?
+  lastPreview    String?
+  unreadCount    Int       @default(0)
+  status         String    @default("open") // open | resolved | snoozed
+  assignedAgentId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages Message[]
+
+  @@unique([shopId, channel, customerPhone])
+  @@index([shopId, lastMessageAt])
+  @@index([shopId, status])
+}
+
+/// Merchant-configured payment provider (JazzCash, EasyPaisa, SadaPay, Stripe,
+/// Razorpay). One shop may have multiple entries (e.g. Jazz + SadaPay).
+model PaymentProviderAccount {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  provider    String // jazzcash | easypaisa | sadapay | stripe | razorpay
+  label       String
+  credentials Json     @default("{}") // { apiKey, secret, merchantId, ... }
+  mode        String   @default("mock") // mock | live
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  advances PaymentAdvance[]
+
+  @@unique([shopId, provider, label])
+  @@index([shopId])
+}
+
+/// Partial / split payment taken against an order (e.g. 20% advance).
+model PaymentAdvance {
+  id               String   @id @default(cuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  providerAccountId String
+  providerAccount  PaymentProviderAccount @relation(fields: [providerAccountId], references: [id], onDelete: Restrict)
+  amount           Decimal  @db.Decimal(14, 2)
+  currency         String   @default("PKR")
+  status           String   @default("pending") // pending | paid | failed | refunded | expired
+  providerRef      String? // provider's transaction ID
+  checkoutUrl      String?
+  paidAt           DateTime?
+  failedAt         DateTime?
+  failureReason    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+}
+
+/// Custom landing page hosted by the app — used for ad campaigns that bypass
+/// Shopify storefront entirely. Served at /f/:slug (shop-scoped or global).
+model LandingPage {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  slug        String   @unique
+  title       String
+  headline    String?
+  subheadline String?
+  heroImage   String?
+  bodyHtml    String?
+  theme       Json     @default("{}") // { accent, bgColor, logoUrl, direction }
+  isPublished Boolean  @default(false)
+  views       Int      @default(0)
+  conversions Int      @default(0)
+  utmDefault  Json     @default("{}") // { utm_source, utm_medium, utm_campaign }
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([formId])
+}
+
+/// GDPR-compliance data export / deletion requests (Shopify customer webhooks).
+model GdprExport {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  kind       String // customer_data_request | customer_redact | shop_redact
+  customerId String?
+  payload    Json     @default("{}")
+  status     String   @default("received") // received | processing | completed | failed
+  processedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([shopId, kind])
+  @@index([status])
 }
