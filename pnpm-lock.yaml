@@ -20,6 +20,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@cashflow-cod/couriers':
+        specifier: workspace:*
+        version: link:../../packages/couriers
       '@cashflow-cod/form-schema':
         specifier: workspace:*
         version: link:../../packages/form-schema
@@ -74,6 +77,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@remix-run/eslint-config':
         specifier: ^2.15.2

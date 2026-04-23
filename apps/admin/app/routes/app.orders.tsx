@@ -19,6 +19,8 @@ import type { Disposition } from '@prisma/client';
 import { authenticate } from '../shopify.server';
 import { getShopByDomain } from '../lib/install.server';
 import prisma from '../db.server';
+import { bookCourierForOrder } from '../lib/couriers.server';
+import { placeConfirmationCall } from '../lib/calls.server';
 
 const DISPOSITIONS: Disposition[] = [
   'UNASSIGNED',
@@ -58,14 +60,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : {}),
   };
 
-  const orders = await prisma.order.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-    include: { form: { select: { name: true, slug: true } } },
-  });
+  const [orders, courierAccounts] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        form: { select: { name: true, slug: true } },
+        courierBookings: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { courierAccount: { select: { courier: true, label: true } } },
+        },
+      },
+    }),
+    prisma.courierAccount.findMany({
+      where: { shopId: shop.id, isActive: true },
+      select: { id: true, label: true, courier: true },
+    }),
+  ]);
 
-  return json({ orders, filter: { disposition, q } });
+  return json({ orders, filter: { disposition, q }, courierAccounts });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -87,31 +102,82 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === 'delete' && id) {
     await prisma.order.deleteMany({ where: { id, shopId: shop.id } });
   }
+  if (intent === 'book-courier' && id) {
+    const courierAccountId = String(body.get('courierAccountId') ?? '');
+    if (courierAccountId) {
+      await bookCourierForOrder({ orderId: id, courierAccountId });
+    }
+  }
+  if (intent === 'call' && id) {
+    const language = String(body.get('language') ?? 'en');
+    await placeConfirmationCall({ orderId: id, language });
+  }
   return redirect('/app/orders');
 };
 
 export default function OrdersRoute() {
-  const { orders, filter } = useLoaderData<typeof loader>();
+  const { orders, filter, courierAccounts } = useLoaderData<typeof loader>();
   const [params, setParams] = useSearchParams();
 
-  const rows = orders.map((o) => [
-    o.createdAt ? new Date(o.createdAt).toLocaleString() : '—',
-    o.customerName ?? '—',
-    o.phone ?? '—',
-    o.city ?? '—',
-    o.form?.name ?? '—',
-    <Badge tone={riskTone(o.riskScore)}>{o.riskScore != null ? String(o.riskScore) : '—'}</Badge>,
-    <DispositionSelect id={o.id} value={o.disposition} />,
-    <InlineStack gap="200">
-      <RemixForm method="post">
-        <input type="hidden" name="intent" value="delete" />
-        <input type="hidden" name="id" value={o.id} />
-        <Button size="slim" tone="critical" variant="tertiary" submit>
-          Delete
-        </Button>
-      </RemixForm>
-    </InlineStack>,
-  ]);
+  const rows = orders.map((o) => {
+    const latestBooking = o.courierBookings?.[0];
+    return [
+      o.createdAt ? new Date(o.createdAt).toLocaleString() : '—',
+      o.customerName ?? '—',
+      o.phone ?? '—',
+      o.city ?? '—',
+      o.form?.name ?? '—',
+      <Badge tone={riskTone(o.riskScore)}>{o.riskScore != null ? String(o.riskScore) : '—'}</Badge>,
+      <DispositionSelect id={o.id} value={o.disposition} />,
+      latestBooking?.consignmentNumber ? (
+        latestBooking.trackingUrl ? (
+          <a href={latestBooking.trackingUrl} target="_blank" rel="noreferrer">
+            {latestBooking.consignmentNumber}
+          </a>
+        ) : (
+          latestBooking.consignmentNumber
+        )
+      ) : (
+        courierAccounts.length > 0 && (
+          <RemixForm method="post">
+            <input type="hidden" name="intent" value="book-courier" />
+            <input type="hidden" name="id" value={o.id} />
+            <select
+              name="courierAccountId"
+              defaultValue={courierAccounts[0]!.id}
+              style={{ padding: '4px 6px', marginRight: 4 }}
+            >
+              {courierAccounts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <Button size="micro" submit>
+              Book
+            </Button>
+          </RemixForm>
+        )
+      ),
+      <InlineStack gap="100">
+        <RemixForm method="post">
+          <input type="hidden" name="intent" value="call" />
+          <input type="hidden" name="id" value={o.id} />
+          <input type="hidden" name="language" value="en" />
+          <Button size="micro" submit>
+            Call
+          </Button>
+        </RemixForm>
+        <RemixForm method="post">
+          <input type="hidden" name="intent" value="delete" />
+          <input type="hidden" name="id" value={o.id} />
+          <Button size="micro" tone="critical" variant="tertiary" submit>
+            Delete
+          </Button>
+        </RemixForm>
+      </InlineStack>,
+    ];
+  });
 
   return (
     <Page title="Orders" subtitle="Cash-on-delivery orders from your Cashflow COD forms.">
@@ -172,6 +238,7 @@ export default function OrdersRoute() {
                     'text',
                     'text',
                     'text',
+                    'text',
                   ]}
                   headings={[
                     'Placed',
@@ -181,6 +248,7 @@ export default function OrdersRoute() {
                     'Form',
                     'Risk',
                     'Disposition',
+                    'Shipment',
                     '',
                   ]}
                   rows={rows}

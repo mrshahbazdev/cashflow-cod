@@ -303,11 +303,53 @@
       });
     });
 
+    var abandonTimer = null;
+    function trackAbandonment() {
+      if (state.status === 'submitting' || state.status === 'success') return;
+      var hasContact = false;
+      var phone = null;
+      var email = null;
+      Object.keys(state.data).forEach(function (k) {
+        var v = state.data[k];
+        if (typeof v !== 'string') return;
+        if (/phone|mobile|cell/i.test(k) && v.replace(/\D/g, '').length >= 7) {
+          phone = v;
+          hasContact = true;
+        }
+        if (/email/i.test(k) && /@/.test(v)) {
+          email = v;
+          hasContact = true;
+        }
+      });
+      if (!hasContact) return;
+      var base = cfg.apiOrigin.replace(/\/+$/, '');
+      try {
+        fetch(base + '/api/public/abandoned', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop: cfg.shop,
+            formSlug: cfg.formSlug,
+            visitorId: visitorId(),
+            phone: phone,
+            email: email,
+            partialData: state.data,
+            lastStep: String(state.stepIdx),
+          }),
+          keepalive: true,
+        }).catch(function () {});
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
     function onChange(key, value) {
       state.data[key] = value;
       if (state.errors[key]) {
         delete state.errors[key];
       }
+      if (abandonTimer) clearTimeout(abandonTimer);
+      abandonTimer = setTimeout(trackAbandonment, 2000);
       render();
     }
 
