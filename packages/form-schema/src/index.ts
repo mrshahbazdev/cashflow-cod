@@ -64,6 +64,16 @@ export const formSchema = z.object({
   steps: z.array(stepSchema).min(1),
   trustBadges: z.array(z.string()).optional(),
   legalText: z.string().optional(),
+  /**
+   * Per-form custom presentation hooks. CSS is wrapped to scope rules to the
+   * widget root; HTML is rendered into header / footer slots with `<script>`
+   * tags stripped. Both are optional.
+   */
+  customCss: z.string().max(50_000).optional(),
+  customHtmlHeader: z.string().max(20_000).optional(),
+  customHtmlFooter: z.string().max(20_000).optional(),
+  /** Whether the storefront should expose a "Have a discount code?" input. */
+  allowDiscountCode: z.boolean().optional(),
 });
 
 export type FormSchema = z.infer<typeof formSchema>;
