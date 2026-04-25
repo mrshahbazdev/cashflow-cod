@@ -59,6 +59,181 @@
     };
   }
 
+  var RTL_LANGS = { ar: 1, ur: 1, he: 1, fa: 1 };
+
+  var WIDGET_STRINGS = {
+    en: { apply: 'Apply', applied: 'Applied', discount: 'Discount code', invalid: 'Invalid code' },
+    ur: { apply: 'لاگو کریں', applied: 'لاگو', discount: 'ڈسکاؤنٹ کوڈ', invalid: 'غلط کوڈ' },
+    ar: { apply: 'تطبيق', applied: 'مطبق', discount: 'كود الخصم', invalid: 'كود غير صحيح' },
+    fr: {
+      apply: 'Appliquer',
+      applied: 'Appliqué',
+      discount: 'Code promo',
+      invalid: 'Code invalide',
+    },
+    es: {
+      apply: 'Aplicar',
+      applied: 'Aplicado',
+      discount: 'Código de descuento',
+      invalid: 'Código no válido',
+    },
+    it: {
+      apply: 'Applica',
+      applied: 'Applicato',
+      discount: 'Codice sconto',
+      invalid: 'Codice non valido',
+    },
+    de: {
+      apply: 'Anwenden',
+      applied: 'Angewendet',
+      discount: 'Rabattcode',
+      invalid: 'Ungültiger Code',
+    },
+    pt: {
+      apply: 'Aplicar',
+      applied: 'Aplicado',
+      discount: 'Código de desconto',
+      invalid: 'Código inválido',
+    },
+    pl: {
+      apply: 'Zastosuj',
+      applied: 'Zastosowano',
+      discount: 'Kod rabatowy',
+      invalid: 'Nieprawidłowy kod',
+    },
+    tr: {
+      apply: 'Uygula',
+      applied: 'Uygulandı',
+      discount: 'İndirim kodu',
+      invalid: 'Geçersiz kod',
+    },
+    nl: {
+      apply: 'Toepassen',
+      applied: 'Toegepast',
+      discount: 'Kortingscode',
+      invalid: 'Ongeldige code',
+    },
+    sv: { apply: 'Använd', applied: 'Tillämpad', discount: 'Rabattkod', invalid: 'Ogiltig kod' },
+    da: { apply: 'Anvend', applied: 'Anvendt', discount: 'Rabatkode', invalid: 'Ugyldig kode' },
+    nb: { apply: 'Bruk', applied: 'Brukt', discount: 'Rabattkode', invalid: 'Ugyldig kode' },
+    fi: {
+      apply: 'Käytä',
+      applied: 'Käytössä',
+      discount: 'Alennuskoodi',
+      invalid: 'Virheellinen koodi',
+    },
+    cs: { apply: 'Použít', applied: 'Použito', discount: 'Slevový kód', invalid: 'Neplatný kód' },
+    th: { apply: 'ใช้', applied: 'ใช้แล้ว', discount: 'รหัสส่วนลด', invalid: 'รหัสไม่ถูกต้อง' },
+    ja: { apply: '適用', applied: '適用済み', discount: '割引コード', invalid: '無効なコード' },
+    ko: { apply: '적용', applied: '적용됨', discount: '할인 코드', invalid: '잘못된 코드' },
+    zh: { apply: '应用', applied: '已应用', discount: '折扣码', invalid: '无效代码' },
+    'zh-tw': { apply: '套用', applied: '已套用', discount: '折扣碼', invalid: '無效代碼' },
+    hi: { apply: 'लागू करें', applied: 'लागू', discount: 'छूट कोड', invalid: 'अमान्य कोड' },
+  };
+
+  function resolveLanguage(cfg) {
+    var enabled = (cfg.i18n && cfg.i18n.enabledLanguages && cfg.i18n.enabledLanguages.slice()) || [
+      'en',
+    ];
+    var def = (cfg.i18n && cfg.i18n.defaultLanguage) || 'en';
+    var query = readQuery('lang');
+    var dataLang = cfg.language && cfg.language !== 'auto' ? cfg.language : null;
+    var browser = (navigator.language || 'en').toLowerCase();
+    var browserShort = browser.split('-')[0];
+    var candidates = [query, dataLang, browser, browserShort, def, 'en'];
+    for (var i = 0; i < candidates.length; i++) {
+      var c = (candidates[i] || '').toLowerCase();
+      if (c && enabled.indexOf(c) !== -1) return c;
+    }
+    return def;
+  }
+
+  function tr(cfg, key) {
+    var lang = (cfg && cfg.activeLanguage) || 'en';
+    return (WIDGET_STRINGS[lang] || WIDGET_STRINGS.en)[key] || WIDGET_STRINGS.en[key] || key;
+  }
+
+  function formatMoney(cfg, amount) {
+    var currency = (cfg && cfg.currency && cfg.currency.base) || 'USD';
+    var locale = (cfg && cfg.currency && cfg.currency.locale) || cfg.activeLanguage || 'en';
+    try {
+      return new Intl.NumberFormat(locale, { style: 'currency', currency: currency }).format(
+        Number(amount) || 0,
+      );
+    } catch (e) {
+      return currency + ' ' + (Number(amount) || 0).toFixed(2);
+    }
+  }
+
+  function loadGooglePlaces(cfg) {
+    if (window.__cashflowGooglePlacesLoading || window.google) return;
+    window.__cashflowGooglePlacesLoading = true;
+    var s = document.createElement('script');
+    var key = encodeURIComponent(cfg.places.publishableKey);
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + key + '&libraries=places';
+    s.async = true;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
+  function attachPlacesAutocomplete(input, cfg, onPlace) {
+    if (!cfg.places || !cfg.places.enabled || !input) return;
+    function attach() {
+      try {
+        if (
+          !window.google ||
+          !window.google.maps ||
+          !window.google.maps.places ||
+          input.dataset.cashflowPlacesAttached === '1'
+        )
+          return false;
+        var opts = { fields: ['address_components', 'formatted_address', 'geometry'] };
+        if (cfg.places.countries) {
+          var arr = String(cfg.places.countries)
+            .split(',')
+            .map(function (c) {
+              return c.trim().toLowerCase();
+            })
+            .filter(Boolean)
+            .slice(0, 5);
+          if (arr.length) opts.componentRestrictions = { country: arr };
+        }
+        var ac = new window.google.maps.places.Autocomplete(input, opts);
+        ac.addListener('place_changed', function () {
+          var p = ac.getPlace();
+          if (p && typeof onPlace === 'function') onPlace(p);
+        });
+        input.dataset.cashflowPlacesAttached = '1';
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    if (!attach()) {
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        if (attach() || tries > 60) clearInterval(iv);
+      }, 250);
+    }
+  }
+
+  function placeToFields(place) {
+    var out = { address: place.formatted_address || '', city: '', postal: '', country: '' };
+    var components = place.address_components || [];
+    for (var i = 0; i < components.length; i++) {
+      var c = components[i];
+      var types = c.types || [];
+      if (types.indexOf('locality') !== -1) out.city = c.long_name;
+      else if (!out.city && types.indexOf('postal_town') !== -1) out.city = c.long_name;
+      else if (!out.city && types.indexOf('administrative_area_level_2') !== -1)
+        out.city = c.long_name;
+      if (types.indexOf('postal_code') !== -1) out.postal = c.long_name;
+      if (types.indexOf('country') !== -1) out.country = c.long_name;
+    }
+    return out;
+  }
+
   function fetchSchema(cfg) {
     var base = cfg.apiOrigin.replace(/\/+$/, '');
     var url =
@@ -196,7 +371,7 @@
     return null;
   }
 
-  function renderField(field, data, onChange, error) {
+  function renderField(field, data, onChange, error, cfg) {
     var widthClass = 'cashflow-cod-col-' + (field.width || 'full');
     var input;
     var common = {
@@ -288,6 +463,35 @@
       else if (field.type === 'phone') type = 'tel';
       else if (field.type === 'postal_code') type = 'text';
       input = el('input', Object.assign({}, common, { type: type }));
+      if (field.type === 'address' && cfg && cfg.places && cfg.places.enabled) {
+        input.setAttribute('autocomplete', 'off');
+        setTimeout(function () {
+          attachPlacesAutocomplete(input, cfg, function (place) {
+            var f = placeToFields(place);
+            if (f.address) onChange(field.key, f.address);
+            // Auto-fill sibling city/postal/country fields when present.
+            try {
+              var rootEl = input.closest ? input.closest('.cashflow-cod-widget') : null;
+              if (rootEl) {
+                var fill = function (selector, value) {
+                  if (!value) return;
+                  var el2 = rootEl.querySelector(selector);
+                  if (el2 && !el2.value) {
+                    el2.value = value;
+                    var ev = new Event('input', { bubbles: true });
+                    el2.dispatchEvent(ev);
+                  }
+                };
+                fill('input[name="city"], input[id$="_city"]', f.city);
+                fill('input[name="postal_code"], input[id$="_postal_code"]', f.postal);
+                fill('input[name="country"], select[name="country"]', f.country);
+              }
+            } catch (e) {
+              /* noop */
+            }
+          });
+        }, 0);
+      }
     }
 
     var wrapper = el('div', { class: 'cashflow-cod-field ' + widthClass }, []);
@@ -546,7 +750,7 @@
           } else {
             state.discountApplied = false;
             state.discountAmount = 0;
-            state.discountError = (res.body && res.body.error) || 'Invalid code';
+            state.discountError = (res.body && res.body.error) || tr(cfg, 'invalid');
           }
           render();
         },
@@ -560,7 +764,7 @@
         el('input', {
           type: 'text',
           class: 'cashflow-cod-discount-input',
-          placeholder: 'Discount code',
+          placeholder: tr(cfg, 'discount'),
           value: state.discountCode,
           oninput: function (e) {
             state.discountCode = e.target.value.toUpperCase();
@@ -575,14 +779,14 @@
             class: 'cashflow-cod-discount-apply',
             onclick: applyDiscount,
           },
-          [state.discountApplied ? 'Applied' : 'Apply'],
+          [state.discountApplied ? tr(cfg, 'applied') : tr(cfg, 'apply')],
         ),
       );
       box.appendChild(row);
       if (state.discountApplied) {
         box.appendChild(
           el('p', { class: 'cashflow-cod-discount-ok' }, [
-            'Discount applied: -' + state.discountAmount,
+            tr(cfg, 'applied') + ': -' + formatMoney(cfg, state.discountAmount),
           ]),
         );
       } else if (state.discountError) {
@@ -593,7 +797,11 @@
 
     function render() {
       mountInto.innerHTML = '';
-      var w = el('div', { class: 'cashflow-cod-widget' });
+      var widgetClass =
+        'cashflow-cod-widget' +
+        (cfg.isRtl ? ' cashflow-cod-rtl' : '') +
+        (cfg.activeLanguage ? ' cashflow-cod-lang-' + cfg.activeLanguage.replace('-', '_') : '');
+      var w = el('div', { class: widgetClass, dir: cfg.isRtl ? 'rtl' : 'ltr' });
       w.appendChild(
         el('h2', { class: 'cashflow-cod-title' }, [schema.title || 'Cash on Delivery']),
       );
@@ -672,7 +880,7 @@
         var grid = el('div', { class: 'cashflow-cod-grid' });
         (step.fields || []).forEach(function (f) {
           if (!isVisible(f, state.data)) return;
-          grid.appendChild(renderField(f, state.data, onChange, state.errors[f.key] || null));
+          grid.appendChild(renderField(f, state.data, onChange, state.errors[f.key] || null, cfg));
         });
         w.appendChild(grid);
 
@@ -812,11 +1020,21 @@
 
     fetchSchema(cfg).then(
       function (res) {
-        var schema = res && res.form && res.form.schema;
+        var formData = res && res.form;
+        var schema = formData && formData.schema;
         if (!schema) {
           console.warn('[Cashflow COD] No form schema returned');
           return;
         }
+        // Forward shop-level config (i18n/currency/Places) into cfg so all
+        // downstream renderers can read it without a second fetch.
+        if (formData.i18n) cfg.i18n = formData.i18n;
+        if (formData.currency) cfg.currency = formData.currency;
+        if (formData.places) cfg.places = formData.places;
+        cfg.activeLanguage = resolveLanguage(cfg);
+        cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+        if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+
         if (cfg.trigger === 'inline') {
           mountInline(cfg, schema, cfg.root);
         } else if (cfg.trigger === 'floating') {
