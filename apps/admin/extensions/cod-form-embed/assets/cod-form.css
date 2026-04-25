@@ -40,7 +40,7 @@
   justify-content: center;
   gap: 8px;
   padding: 14px 22px;
-  font-size: 1rem;
+  font-size: var(--cf-btn-font-size, 1rem);
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--cf-accent-ink);
@@ -206,7 +206,7 @@
 .cashflow-cod-subtitle {
   margin: 0 0 20px;
   color: var(--cf-text-muted);
-  font-size: 0.95rem;
+  font-size: 1.05rem;
 }
 
 /* Trust badges row */
@@ -225,7 +225,7 @@
   border: 1px solid var(--cf-border);
   color: var(--cf-text-soft);
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 .cashflow-cod-trust-badge::before {
@@ -238,7 +238,7 @@
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--cf-border);
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   color: var(--cf-text-muted);
   line-height: 1.5;
 }
@@ -257,7 +257,7 @@
   border-radius: 999px;
   background: var(--cf-bg-soft);
   border: 1px solid var(--cf-border);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   color: var(--cf-text-muted);
   transition: all 0.18s ease;
 }
@@ -321,7 +321,7 @@
 .cashflow-cod-label {
   display: block;
   margin-bottom: 6px;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--cf-text);
 }
@@ -387,7 +387,7 @@
   border: 1px solid var(--cf-border);
   border-radius: var(--cf-radius-sm);
   background: var(--cf-bg);
-  font-size: 0.95rem;
+  font-size: 1rem;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -401,12 +401,12 @@
 
 .cashflow-cod-help {
   margin: 6px 0 0;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--cf-text-muted);
 }
 .cashflow-cod-error {
   margin: 6px 0 0;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--cf-danger);
   font-weight: 500;
 }
@@ -417,7 +417,7 @@
   border-radius: var(--cf-radius-sm);
   margin-top: 14px;
   color: #991b1b;
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .cashflow-cod-divider {
@@ -426,7 +426,7 @@
   margin: 12px 0;
 }
 .cashflow-cod-html {
-  font-size: 0.92rem;
+  font-size: 1rem;
   color: var(--cf-text-soft);
 }
 
