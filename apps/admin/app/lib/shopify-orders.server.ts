@@ -59,6 +59,33 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
 
   const { admin } = await unauthenticated.admin(shop.domain);
 
+  // Probe: does this offline token work for ANY admin GraphQL call? If the
+  // token itself is broken (uninstall/reinstall race, revoked, expired etc.)
+  // every mutation will 403 — including ones that don't touch protected
+  // customer data. Surfacing the probe result first lets us tell that
+  // failure mode apart from a Protected-Customer-Data refusal.
+  try {
+    const probe = await admin.graphql(
+      'query CashflowCodTokenProbe { shop { name myshopifyDomain } }',
+    );
+    const probeJson = (await probe.json()) as {
+      data?: { shop?: { name?: string; myshopifyDomain?: string } };
+      errors?: Array<{ message: string }>;
+    };
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[Cashflow COD] token probe for ${shop.domain}: ` +
+        `name=${probeJson.data?.shop?.name ?? 'unknown'} ` +
+        `errors=${JSON.stringify(probeJson.errors ?? [])}`,
+    );
+  } catch (probeErr) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[Cashflow COD] token probe THREW for ${shop.domain}: ` +
+        (probeErr instanceof Error ? probeErr.message : String(probeErr)),
+    );
+  }
+
   const schema = form.schema as unknown as FormSchema;
   const fields: Field[] = schema?.steps?.flatMap((s) => s.fields) ?? [];
   const byType = (t: string) => fields.find((f) => f.type === t);
