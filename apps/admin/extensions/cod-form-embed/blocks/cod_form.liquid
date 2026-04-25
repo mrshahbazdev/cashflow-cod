@@ -60,6 +60,11 @@
   data-api="{{ cf_api }}"
   data-product-id="{% if product %}{{ product.id }}{% endif %}"
   data-variant-id="{% if product %}{{ product.selected_or_first_available_variant.id }}{% endif %}"
+  data-product-title="{% if product %}{{ product.title | escape }}{% endif %}"
+  data-product-image="{% if product and product.featured_image %}{{ product.featured_image | image_url: width: 200 }}{% endif %}"
+  data-product-price="{% if product %}{{ product.selected_or_first_available_variant.price | money_without_currency }}{% endif %}"
+  data-product-variant-title="{% if product and product.selected_or_first_available_variant.title != 'Default Title' %}{{ product.selected_or_first_available_variant.title | escape }}{% endif %}"
+  data-btn-animation="{{ block.settings.button_animation }}"
 >
   {% if block.settings.trigger == 'button' %}
     <button
@@ -195,6 +200,20 @@
       "step": 1,
       "unit": "px",
       "default": 22
+    },
+    {
+      "type": "select",
+      "id": "button_animation",
+      "label": "Button animation",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "pulse", "label": "Pulse" },
+        { "value": "glow", "label": "Glow" },
+        { "value": "shake", "label": "Shake" },
+        { "value": "bounce", "label": "Bounce" }
+      ],
+      "default": "none",
+      "info": "Attention-grabbing animation for the COD button."
     },
     {
       "type": "header",

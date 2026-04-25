@@ -59,6 +59,15 @@ type Settings = {
     blockedCountries?: string[];
   };
   voice?: VoiceSettings;
+  whatsappConfirmation?: {
+    enabled?: boolean;
+    messageTemplate?: string;
+  };
+  messagingCredentials?: {
+    apiKey?: string;
+    phoneNumberId?: string;
+    mode?: string;
+  };
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -121,6 +130,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       retellFromNumber: String(body.get('retellFromNumber') ?? current.voice?.retellFromNumber ?? ''),
       openaiApiKey: String(body.get('openaiApiKey') ?? current.voice?.openaiApiKey ?? ''),
       openaiRelayUrl: String(body.get('openaiRelayUrl') ?? current.voice?.openaiRelayUrl ?? ''),
+    },
+    whatsappConfirmation: {
+      enabled: body.get('waConfirmEnabled') === 'on',
+      messageTemplate: String(
+        body.get('waConfirmTemplate') ??
+          current.whatsappConfirmation?.messageTemplate ??
+          'Hi {{name}}, your Cash on Delivery order{{orderId}} has been confirmed!{{total}} We will deliver it soon. Thank you!',
+      ),
+    },
+    messagingCredentials: {
+      apiKey: String(body.get('waApiKey') ?? current.messagingCredentials?.apiKey ?? ''),
+      phoneNumberId: String(body.get('waPhoneNumberId') ?? current.messagingCredentials?.phoneNumberId ?? ''),
     },
   };
 
@@ -191,6 +212,17 @@ export default function SettingsRoute() {
   const showElevenLabs = voiceProvider === 'elevenlabs-twilio';
   const showRetell = voiceProvider === 'retell';
   const showOpenai = voiceProvider === 'openai-realtime';
+
+  // WhatsApp confirmation settings
+  const wa = s.whatsappConfirmation ?? {};
+  const mc = s.messagingCredentials ?? {};
+  const [waEnabled, setWaEnabled] = useState(wa.enabled ?? false);
+  const [waTemplate, setWaTemplate] = useState(
+    wa.messageTemplate ??
+      'Hi {{name}}, your Cash on Delivery order{{orderId}} has been confirmed!{{total}} We will deliver it soon. Thank you!',
+  );
+  const [waApiKey, setWaApiKey] = useState(mc.apiKey ?? '');
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState(mc.phoneNumberId ?? '');
 
   return (
     <Page title="Settings" subtitle="Configure branding, OTP, fraud rules, voice calling, and localization.">
@@ -559,6 +591,59 @@ export default function SettingsRoute() {
                         autoComplete="off"
                       />
                     </InlineGrid>
+                  </>
+                )}
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+
+          {/* ── WhatsApp Order Confirmation ───────────────────── */}
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
+                  WhatsApp Order Confirmation
+                </Text>
+                <Text as="p" tone="subdued">
+                  Auto-send a WhatsApp message to customers after they place a COD order.
+                  Uses 360Dialog WhatsApp Business API.
+                </Text>
+                <Checkbox
+                  label="Enable WhatsApp order confirmation"
+                  checked={waEnabled}
+                  onChange={setWaEnabled}
+                  name="waConfirmEnabled"
+                />
+                {waEnabled && (
+                  <>
+                    <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
+                      <TextField
+                        label="360Dialog API Key"
+                        name="waApiKey"
+                        type="password"
+                        value={waApiKey}
+                        onChange={setWaApiKey}
+                        autoComplete="off"
+                        helpText="Your D360 API key from 360dialog.com"
+                      />
+                      <TextField
+                        label="Phone Number ID (optional)"
+                        name="waPhoneNumberId"
+                        value={waPhoneNumberId}
+                        onChange={setWaPhoneNumberId}
+                        autoComplete="off"
+                        helpText="Only for Cloud API. Leave blank for legacy endpoint."
+                      />
+                    </InlineGrid>
+                    <TextField
+                      label="Message template"
+                      name="waConfirmTemplate"
+                      value={waTemplate}
+                      onChange={setWaTemplate}
+                      multiline={3}
+                      autoComplete="off"
+                      helpText="Use {{name}}, {{orderId}}, {{total}} as placeholders."
+                    />
                   </>
                 )}
               </BlockStack>
