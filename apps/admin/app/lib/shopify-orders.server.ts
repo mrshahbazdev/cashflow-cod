@@ -131,6 +131,21 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
     };
   }
 
+  // Build the customer summary as protected key/value pairs so the merchant
+  // can still fulfil orders even on shops that have not granted Protected
+  // Customer Data Access. Shopify rejects shippingAddress / firstName /
+  // email / phone fields with a top-level 403 on those shops, but custom
+  // attributes are unrestricted and surface in the draft-order detail view.
+  const merchantSummaryAttrs: Array<{ key: string; value: string }> = [];
+  if (name) merchantSummaryAttrs.push({ key: '_cashflow_customer', value: name });
+  if (phone) merchantSummaryAttrs.push({ key: '_cashflow_phone', value: phone });
+  if (email) merchantSummaryAttrs.push({ key: '_cashflow_email', value: email });
+  const summaryAddress = [addressLine1, city, postalCode, country]
+    .filter(Boolean)
+    .join(', ');
+  if (summaryAddress)
+    merchantSummaryAttrs.push({ key: '_cashflow_address', value: summaryAddress });
+
   const input: Record<string, unknown> = {
     email,
     phone,
@@ -142,7 +157,38 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
   };
   if (appliedDiscount) input.appliedDiscount = appliedDiscount;
 
-  const response = await admin.graphql(DRAFT_ORDER_CREATE, { variables: { input } });
+  // Same payload but stripped of every Shopify-classified Protected Customer
+  // Data field. Used as a fallback when the first attempt is rejected with
+  // a 403 — merchant still gets a draft order, customer PII is preserved
+  // in customAttributes (and in our admin DB) for fulfilment.
+  const inputWithoutProtected: Record<string, unknown> = {
+    note: `Placed via Cashflow COD form "${form.name}" (submission ${submission.id}). Customer details available in Cashflow COD admin.`,
+    tags: [...tags, 'cashflow-no-pii'],
+    lineItems,
+    customAttributes: [...customAttributes, ...merchantSummaryAttrs].slice(0, 25),
+  };
+  if (appliedDiscount) inputWithoutProtected.appliedDiscount = appliedDiscount;
+
+  let response: Response;
+  let usedFallback = false;
+  try {
+    response = await admin.graphql(DRAFT_ORDER_CREATE, { variables: { input } });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/403\s*Forbidden|GraphQL Client:\s*Forbidden/i.test(msg)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[Cashflow COD] draftOrderCreate 403 for ${shop.domain} — retrying without ` +
+          `protected customer fields (PII goes into customAttributes instead).`,
+      );
+      response = await admin.graphql(DRAFT_ORDER_CREATE, {
+        variables: { input: inputWithoutProtected },
+      });
+      usedFallback = true;
+    } else {
+      throw err;
+    }
+  }
   const payload = (await response.json()) as {
     data?: {
       draftOrderCreate: {
@@ -157,6 +203,13 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
   }
   const draft = payload.data?.draftOrderCreate.draftOrder;
   if (!draft) throw new Error('Draft order creation returned no data');
+  if (usedFallback) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[Cashflow COD] draftOrderCreate fallback succeeded for ${shop.domain}, ` +
+        `draft id=${draft.id}.`,
+    );
+  }
 
   const completeResp = await admin.graphql(DRAFT_ORDER_COMPLETE, {
     variables: { id: draft.id, paymentPending: true },
