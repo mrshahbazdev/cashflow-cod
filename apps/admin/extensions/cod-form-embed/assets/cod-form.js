@@ -1112,6 +1112,18 @@
     /* no-op */
   }
 
+  function currentPageType() {
+    var path = window.location.pathname;
+    if (/\/products\//.test(path)) return 'product';
+    if (/\/cart\b/.test(path)) return 'cart';
+    return 'other';
+  }
+
+  function placementMatchesPage(placement) {
+    if (!placement || placement === 'custom' || placement === 'landing') return true;
+    return currentPageType() === placement;
+  }
+
   function bootRoot(root) {
     if (root.__cashflowBooted) return;
     root.__cashflowBooted = true;
@@ -1124,6 +1136,7 @@
         );
       return;
     }
+    if (!placementMatchesPage(cfg.placement)) return;
     registerSw(cfg);
     styleAccent(cfg.accent);
 
