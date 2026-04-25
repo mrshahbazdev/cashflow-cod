@@ -1,0 +1,62 @@
+{% comment %}
+  Cashflow COD — Floating button (sticky)
+  Renders a sticky floating CTA in the corner of every page on the
+  storefront. Enable as an app embed and pick a form slug.
+{% endcomment %}
+
+<div
+  class="cashflow-cod-root"
+  data-cashflow-cod-root
+  data-shop="{{ shop.permanent_domain }}"
+  data-form-slug="{{ block.settings.form_slug }}"
+  data-placement="custom"
+  data-trigger="floating"
+  data-accent="{{ block.settings.accent_color }}"
+  data-language="{{ block.settings.language }}"
+  data-api="{{ block.settings.api_origin }}"
+></div>
+
+{{ 'cod-form.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'cod-form.js' | asset_url }}" defer="defer"></script>
+
+{% schema %}
+{
+  "name": "Cashflow COD Floating",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "api_origin",
+      "label": "API origin",
+      "default": "https://your-cashflow-cod-app.example"
+    },
+    {
+      "type": "text",
+      "id": "form_slug",
+      "label": "Form slug",
+      "default": "default"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#008060"
+    },
+    {
+      "type": "select",
+      "id": "language",
+      "label": "Language",
+      "options": [
+        { "value": "auto", "label": "Auto (detect)" },
+        { "value": "en", "label": "English" },
+        { "value": "ur", "label": "Urdu" },
+        { "value": "ar", "label": "Arabic" },
+        { "value": "hi", "label": "Hindi" },
+        { "value": "bn", "label": "Bengali" },
+        { "value": "id", "label": "Indonesian" }
+      ],
+      "default": "auto"
+    }
+  ]
+}
+{% endschema %}

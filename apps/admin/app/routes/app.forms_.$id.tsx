@@ -254,6 +254,10 @@ export default function FormBuilderRoute() {
             url: `/app/forms/${initial.id}/preview`,
           },
           {
+            content: 'Embed snippets',
+            url: `/app/forms/${initial.id}/embed`,
+          },
+          {
             content: 'Delete',
             destructive: true,
             onAction: () => {
