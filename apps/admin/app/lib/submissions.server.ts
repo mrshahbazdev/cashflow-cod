@@ -7,6 +7,8 @@ import { markAbandonmentConverted } from './abandoned.server';
 import { contextFromOrder, firePixelsForShop, type ClientTrackingContext } from './pixels.server';
 import { dispatchSinkEvent } from './sinks';
 import { dispatchWebhook } from './webhooks.server';
+import { recordDiscountRedemption, validateDiscount } from './discounts.server';
+import { bestQuantityDiscount } from './quantity-offers.server';
 
 type SubmitInput = {
   form: Form & { shop: Shop };
@@ -19,6 +21,10 @@ type SubmitInput = {
   productId: string | null;
   variantId: string | null;
   tracking?: ClientTrackingContext;
+  discountCode?: string | null;
+  cartSubtotal?: number;
+  quantity?: number;
+  unitPrice?: number;
 };
 
 export type SubmitResult =
@@ -43,6 +49,10 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
     productId,
     variantId,
     tracking,
+    discountCode,
+    cartSubtotal,
+    quantity,
+    unitPrice,
   } = input;
 
   const allFields: Field[] = schema.steps.flatMap((s) => s.fields);
@@ -182,6 +192,49 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
     };
   }
 
+  // Resolve any discount + quantity-ladder savings before creating the draft.
+  let discountSummary: {
+    id: string;
+    code: string;
+    type: string;
+    amount: number;
+    freeShipping: boolean;
+  } | null = null;
+  if (discountCode && cartSubtotal && cartSubtotal > 0) {
+    const validated = await validateDiscount({
+      shopId: form.shopId,
+      code: discountCode,
+      subtotal: cartSubtotal,
+      productIds: productId ? [productId] : [],
+      customerKey: phoneNormalized ?? email ?? null,
+    });
+    if (validated.ok) {
+      discountSummary = {
+        id: validated.discount.id,
+        code: validated.discount.code,
+        type: validated.discount.type,
+        amount: validated.amount,
+        freeShipping: validated.freeShipping,
+      };
+    }
+  }
+  let qtyDiscount: { description: string; amount: number } | null = null;
+  if (quantity && quantity > 1 && unitPrice && unitPrice > 0) {
+    const result = await bestQuantityDiscount({
+      shopId: form.shopId,
+      productId,
+      variantId,
+      quantity,
+      unitPrice,
+    });
+    if (result.applied && result.rung) {
+      qtyDiscount = {
+        description: `Buy ${result.rung.minQuantity}+ → ${result.rung.discountValue}${result.rung.discountType === 'percent' ? '%' : ''} off`,
+        amount: result.totalSavings,
+      };
+    }
+  }
+
   let orderRow = null as Awaited<ReturnType<typeof createDraftOrderForSubmission>> | null;
   try {
     orderRow = await createDraftOrderForSubmission({
@@ -191,6 +244,8 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
       data,
       productId,
       variantId,
+      discount: discountSummary,
+      quantityDiscount: qtyDiscount,
     });
   } catch (err) {
     await prisma.submission.update({
@@ -207,6 +262,17 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
     where: { id: submission.id },
     data: { status: 'CONVERTED' },
   });
+
+  if (orderRow && discountSummary) {
+    void recordDiscountRedemption({
+      shopId: form.shopId,
+      discountId: discountSummary.id,
+      submissionId: submission.id,
+      orderId: orderRow.id,
+      amount: discountSummary.amount,
+      customerKey: phoneNormalized ?? email ?? null,
+    });
+  }
 
   if (orderRow) {
     void firePixelsForShop({

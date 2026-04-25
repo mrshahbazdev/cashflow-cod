@@ -10,6 +10,23 @@ type CreateDraftArgs = {
   data: Record<string, unknown>;
   productId: string | null;
   variantId: string | null;
+  /**
+   * Pre-validated discount summary (see `lib/discounts.server.ts`).
+   * When supplied we forward it as a Shopify `appliedDiscount` and persist
+   * the savings amount on the resulting Order row.
+   */
+  discount?: {
+    id: string;
+    code: string;
+    type: string;
+    amount: number;
+    freeShipping: boolean;
+  } | null;
+  /**
+   * Optional flat savings produced by the QuantityOffer ladder. Applied as a
+   * second `appliedDiscount` line so merchants see both reasons in Shopify.
+   */
+  quantityDiscount?: { description: string; amount: number } | null;
 };
 
 const DRAFT_ORDER_CREATE = `
@@ -38,7 +55,7 @@ const DRAFT_ORDER_COMPLETE = `
 `;
 
 export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
-  const { shop, form, submission, data, variantId } = args;
+  const { shop, form, submission, data, variantId, discount, quantityDiscount } = args;
 
   const { admin } = await unauthenticated.admin(shop.domain);
 
@@ -85,13 +102,36 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
       : undefined;
 
   const tags = ['cashflow-cod', `form:${form.slug}`];
+  if (discount) tags.push(`discount:${discount.code}`);
 
   const customAttributes = Object.entries(data)
     .filter(([, v]) => v !== null && v !== undefined && String(v).trim().length > 0)
     .map(([k, v]) => ({ key: `cod.${k}`, value: String(v) }))
     .slice(0, 20);
 
-  const input = {
+  // Prefer the code-based discount; fall back to the quantity ladder if present.
+  // Shopify only accepts a single appliedDiscount per draft order, so we pick
+  // the larger of the two to surface the bigger saving.
+  let appliedDiscount: Record<string, unknown> | undefined;
+  const discountAmount = discount && discount.type !== 'free_shipping' ? discount.amount : 0;
+  const qtyAmount = quantityDiscount?.amount ?? 0;
+  if (discountAmount >= qtyAmount && discount && discount.type !== 'free_shipping') {
+    appliedDiscount = {
+      title: `Discount ${discount.code}`,
+      description: `Code ${discount.code}`,
+      value: discount.amount,
+      valueType: 'FIXED_AMOUNT',
+    };
+  } else if (qtyAmount > 0 && quantityDiscount) {
+    appliedDiscount = {
+      title: 'Quantity discount',
+      description: quantityDiscount.description,
+      value: quantityDiscount.amount,
+      valueType: 'FIXED_AMOUNT',
+    };
+  }
+
+  const input: Record<string, unknown> = {
     email,
     phone,
     note: `Placed via Cashflow COD form "${form.name}" (submission ${submission.id})`,
@@ -100,6 +140,7 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
     shippingAddress,
     customAttributes,
   };
+  if (appliedDiscount) input.appliedDiscount = appliedDiscount;
 
   const response = await admin.graphql(DRAFT_ORDER_CREATE, { variables: { input } });
   const payload = (await response.json()) as {

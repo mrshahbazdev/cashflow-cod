@@ -133,6 +133,15 @@
     payload.tracking = trackingContext();
     return postJson(cfg, '/api/public/submissions', payload);
   }
+
+  function validateDiscountCode(cfg, code, subtotal, productIds) {
+    return postJson(cfg, '/api/public/discounts/validate', {
+      shop: cfg.shop,
+      code: code,
+      subtotal: subtotal,
+      productIds: productIds || [],
+    });
+  }
   function requestOtp(cfg, submissionId) {
     return postJson(cfg, '/api/public/otp/request', { submissionId: submissionId });
   }
@@ -338,6 +347,10 @@
       submissionId: null,
       otpCode: '',
       otpDestination: '',
+      discountCode: '',
+      discountApplied: false,
+      discountAmount: 0,
+      discountError: '',
     };
 
     // Preselect defaults
@@ -440,6 +453,10 @@
         productId: cfg.productId,
         variantId: cfg.variantId,
         data: state.data,
+        discountCode: state.discountApplied ? state.discountCode : null,
+        cartSubtotal: cfg.unitPrice && cfg.quantity ? cfg.unitPrice * cfg.quantity : undefined,
+        quantity: cfg.quantity || 1,
+        unitPrice: cfg.unitPrice,
       })
         .then(function (res) {
           if (res.status >= 200 && res.status < 300 && res.body && res.body.ok) {
@@ -508,6 +525,70 @@
         }
         render();
       });
+    }
+
+    function applyDiscount() {
+      var code = (state.discountCode || '').trim();
+      if (!code) {
+        state.discountError = 'Enter a code';
+        render();
+        return;
+      }
+      var subtotal =
+        cfg.unitPrice && cfg.quantity ? cfg.unitPrice * cfg.quantity : cfg.unitPrice || 0;
+      state.discountError = '';
+      validateDiscountCode(cfg, code, subtotal, cfg.productId ? [cfg.productId] : []).then(
+        function (res) {
+          if (res.body && res.body.ok) {
+            state.discountApplied = true;
+            state.discountAmount = (res.body.discount && res.body.discount.amount) || 0;
+            state.discountError = '';
+          } else {
+            state.discountApplied = false;
+            state.discountAmount = 0;
+            state.discountError = (res.body && res.body.error) || 'Invalid code';
+          }
+          render();
+        },
+      );
+    }
+
+    function renderDiscountBlock() {
+      var box = el('div', { class: 'cashflow-cod-discount' });
+      var row = el('div', { class: 'cashflow-cod-discount-row' });
+      row.appendChild(
+        el('input', {
+          type: 'text',
+          class: 'cashflow-cod-discount-input',
+          placeholder: 'Discount code',
+          value: state.discountCode,
+          oninput: function (e) {
+            state.discountCode = e.target.value.toUpperCase();
+          },
+        }),
+      );
+      row.appendChild(
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'cashflow-cod-discount-apply',
+            onclick: applyDiscount,
+          },
+          [state.discountApplied ? 'Applied' : 'Apply'],
+        ),
+      );
+      box.appendChild(row);
+      if (state.discountApplied) {
+        box.appendChild(
+          el('p', { class: 'cashflow-cod-discount-ok' }, [
+            'Discount applied: -' + state.discountAmount,
+          ]),
+        );
+      } else if (state.discountError) {
+        box.appendChild(el('p', { class: 'cashflow-cod-discount-err' }, [state.discountError]));
+      }
+      return box;
     }
 
     function render() {
@@ -601,13 +682,17 @@
           );
         }
 
+        var isLast = state.stepIdx === schema.steps.length - 1;
+        if (isLast && schema.allowDiscountCode !== false) {
+          w.appendChild(renderDiscountBlock());
+        }
+
         var nav = el('div', { class: 'cashflow-cod-nav' });
         if (state.stepIdx > 0) {
           nav.appendChild(
             el('button', { type: 'button', class: 'cashflow-cod-prev', onclick: goPrev }, ['Back']),
           );
         }
-        var isLast = state.stepIdx === schema.steps.length - 1;
         var btnLabel =
           state.status === 'submitting'
             ? 'Placing order…'
