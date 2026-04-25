@@ -67,6 +67,8 @@ model Shop {
   landingPages    LandingPage[]
   paymentAccounts PaymentProviderAccount[]
   gdprExports     GdprExport[]
+  integrations    Integration[]
+  webhookDeliveries WebhookDelivery[]
 
   @@index([domain])
   @@index([merchantGroupId])
@@ -755,4 +757,52 @@ model GdprExport {
 
   @@index([shopId, kind])
   @@index([status])
+}
+
+// -----------------------------------------------------------------------------
+// PR-B — Marketing sinks (Google Sheets, Klaviyo, Omnisend) + outbound webhook
+// delivery log.
+// -----------------------------------------------------------------------------
+
+/// External marketing/data sink configured per shop. Credentials are JSON so
+/// each provider can stash whatever keys it needs (api_key, sheet_id, refresh
+/// token, etc). Settings is a separate field for non-secret config.
+model Integration {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  provider    String // klaviyo | omnisend | google_sheets | mailchimp | sendgrid | custom
+  label       String
+  credentials Json     @default("{}")
+  settings    Json     @default("{}")
+  isActive    Boolean  @default(true)
+  lastFiredAt DateTime?
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, provider, label])
+  @@index([shopId, provider])
+}
+
+/// One row per outbound webhook attempt (success or failure). Lets merchants
+/// inspect their integration health and re-deliver failed events.
+model WebhookDelivery {
+  id              String   @id @default(cuid())
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  subscriptionId  String?
+  topic           String
+  url             String
+  payload         Json
+  statusCode      Int?
+  responseBody    String?
+  errorMessage    String?
+  attempt         Int      @default(1)
+  durationMs      Int?
+  deliveredAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([subscriptionId])
 }

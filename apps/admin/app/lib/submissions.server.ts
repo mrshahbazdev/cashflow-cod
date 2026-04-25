@@ -5,6 +5,8 @@ import { createDraftOrderForSubmission } from './shopify-orders.server';
 import { scoreRisk, recordRiskEvaluation, type RiskFeatures } from './risk.server';
 import { markAbandonmentConverted } from './abandoned.server';
 import { contextFromOrder, firePixelsForShop, type ClientTrackingContext } from './pixels.server';
+import { dispatchSinkEvent } from './sinks';
+import { dispatchWebhook } from './webhooks.server';
 
 type SubmitInput = {
   form: Form & { shop: Shop };
@@ -154,6 +156,23 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
       },
     });
 
+    void dispatchSinkEvent(form.shopId, {
+      kind: 'submission.created',
+      submission,
+      form,
+      shop: form.shop,
+    });
+    void dispatchWebhook(form.shopId, {
+      topic: 'submission.created',
+      data: {
+        submissionId: submission.id,
+        formSlug: form.slug,
+        email: submission.email,
+        phone: submission.phone,
+        riskScore: risk.score,
+      },
+    });
+
     return {
       ok: true,
       submissionId: submission.id,
@@ -206,6 +225,30 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
         productId,
         variantId,
       }),
+    });
+    void dispatchSinkEvent(form.shopId, {
+      kind: 'order.placed',
+      order: orderRow,
+      submission,
+      form,
+      shop: form.shop,
+    });
+    void dispatchWebhook(form.shopId, {
+      topic: 'order.placed',
+      data: {
+        orderId: orderRow.shopifyOrderId ?? orderRow.id,
+        shopifyOrderId: orderRow.shopifyOrderId,
+        total: orderRow.total,
+        currency: orderRow.currency,
+        customerName: orderRow.customerName,
+        email: orderRow.email,
+        phone: orderRow.phone,
+        addressLine1: orderRow.addressLine1,
+        city: orderRow.city,
+        country: orderRow.country,
+        postalCode: orderRow.postalCode,
+        formSlug: form.slug,
+      },
     });
   }
 
