@@ -22,17 +22,19 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 10px;
     padding: {{ cf_pad_y }}px {{ cf_pad_x }}px;
     --cf-btn-font-size: {{ cf_font_size }}px;
     font-size: {{ cf_font_size }}px;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
     color: {{ cf_text_color }};
     background: {{ cf_accent }};
     border: none;
     border-radius: {{ cf_radius }}px;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transition:
       transform 0.18s ease,
       box-shadow 0.18s ease,
@@ -159,7 +161,7 @@
       "id": "font_size",
       "label": "Font size",
       "min": 12,
-      "max": 32,
+      "max": 40,
       "step": 1,
       "unit": "px",
       "default": 16
