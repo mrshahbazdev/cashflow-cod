@@ -34,7 +34,10 @@ const shopify = shopifyApp({
   distribution: AppDistribution.AppStore,
   future: {
     unstable_newEmbeddedAuthStrategy: true,
-    removeRest: true,
+    // Required since Apr 1, 2026: public apps must request expiring offline
+    // access tokens. Without this flag Shopify rejects every Admin API call
+    // with: "[API] Non-expiring access tokens are no longer accepted".
+    expiringOfflineAccessTokens: true,
   },
   hooks: {
     afterAuth: async ({ session }) => {
