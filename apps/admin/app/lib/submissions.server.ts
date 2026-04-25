@@ -284,6 +284,28 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
           `saved as PENDING. Merchant must approve customer-data access in the ` +
           `Partner dashboard (App setup → Customer data → Protected customer data).`,
       );
+      // Dump the raw error and the shop's currently-stored offline session so
+      // we can debug whether the access-token actually carries the expected
+      // scopes after a reinstall.
+      try {
+        const session = await prisma.session.findFirst({
+          where: { shop: form.shop.domain, isOnline: false },
+          orderBy: { expires: 'desc' },
+          select: { id: true, scope: true, expires: true, accessToken: true },
+        });
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[Cashflow COD] 403 raw error: ${raw}\n` +
+            `[Cashflow COD] offline session for ${form.shop.domain}: ` +
+            `id=${session?.id ?? 'none'} ` +
+            `scope=${session?.scope ?? 'none'} ` +
+            `expires=${session?.expires?.toISOString() ?? 'none'} ` +
+            `tokenLen=${session?.accessToken?.length ?? 0}`,
+        );
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`[Cashflow COD] could not introspect session: ${String(e)}`);
+      }
       return {
         ok: true,
         submissionId: submission.id,
