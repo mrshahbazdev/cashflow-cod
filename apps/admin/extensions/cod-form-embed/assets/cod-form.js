@@ -165,6 +165,67 @@
     }
   }
 
+  function sanitizeHtml(html) {
+    if (!html) return '';
+    return String(html)
+      .replace(/<\s*script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<\s*script\b[^>]*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
+      .replace(/javascript:/gi, '');
+  }
+
+  function scopeCss(css, scopeSelector) {
+    if (!css) return '';
+    // Strip @import + url(javascript:..) and prefix every selector with the
+    // widget root so merchant CSS can not leak to the rest of the page.
+    var clean = String(css)
+      .replace(/@import[^;]+;?/gi, '')
+      .replace(/url\(\s*javascript:[^)]*\)/gi, 'url(about:blank)');
+    // Tokenise on `}` so we can rewrite selectors block by block.
+    var blocks = clean.split('}');
+    var out = '';
+    for (var i = 0; i < blocks.length; i++) {
+      var block = blocks[i];
+      var braceIdx = block.indexOf('{');
+      if (braceIdx === -1) {
+        out += block;
+        continue;
+      }
+      var selector = block.slice(0, braceIdx).trim();
+      var body = block.slice(braceIdx);
+      if (!selector || selector.charAt(0) === '@') {
+        out += selector + body + '}';
+        continue;
+      }
+      var scoped = selector
+        .split(',')
+        .map(function (s) {
+          var t = s.trim();
+          if (!t) return '';
+          if (t.indexOf(scopeSelector) === 0) return t;
+          return scopeSelector + ' ' + t;
+        })
+        .filter(Boolean)
+        .join(', ');
+      out += scoped + body + '}';
+    }
+    return out;
+  }
+
+  function injectCustomCss(schema, widgetRoot) {
+    if (!schema.customCss) return;
+    var styleId = 'cashflow-cod-style-form-' + Math.random().toString(36).slice(2, 8);
+    var style = document.createElement('style');
+    style.id = styleId;
+    widgetRoot.classList.add('cashflow-cod-scoped-' + styleId.slice(-6));
+    style.textContent = scopeCss(
+      schema.customCss,
+      '.cashflow-cod-widget.cashflow-cod-scoped-' + styleId.slice(-6),
+    );
+    document.head.appendChild(style);
+  }
+
   function loadGooglePlaces(cfg) {
     if (window.__cashflowGooglePlacesLoading || window.google) return;
     window.__cashflowGooglePlacesLoading = true;
@@ -802,6 +863,12 @@
         (cfg.isRtl ? ' cashflow-cod-rtl' : '') +
         (cfg.activeLanguage ? ' cashflow-cod-lang-' + cfg.activeLanguage.replace('-', '_') : '');
       var w = el('div', { class: widgetClass, dir: cfg.isRtl ? 'rtl' : 'ltr' });
+      injectCustomCss(schema, w);
+      if (schema.customHtmlHeader) {
+        var hdr = el('div', { class: 'cashflow-cod-custom-header' });
+        hdr.innerHTML = sanitizeHtml(schema.customHtmlHeader);
+        w.appendChild(hdr);
+      }
       w.appendChild(
         el('h2', { class: 'cashflow-cod-title' }, [schema.title || 'Cash on Delivery']),
       );
@@ -924,6 +991,12 @@
 
       if (schema.legalText) {
         w.appendChild(el('p', { class: 'cashflow-cod-legal' }, [schema.legalText]));
+      }
+
+      if (schema.customHtmlFooter) {
+        var ftr = el('div', { class: 'cashflow-cod-custom-footer' });
+        ftr.innerHTML = sanitizeHtml(schema.customHtmlFooter);
+        w.appendChild(ftr);
       }
 
       mountInto.appendChild(w);
