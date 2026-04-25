@@ -1,5 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
+import { processVoiceConfirm, VOICE_CONFIRM_RETRY } from './jobs/voice-confirm.js';
 
 const connection = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
@@ -10,11 +11,27 @@ export const queues = {
   webhook: new Queue('webhook', { connection }),
   courier: new Queue('courier', { connection }),
   rto: new Queue('rto-scoring', { connection }),
+  voiceConfirm: new Queue('voice-confirm', {
+    connection,
+    defaultJobOptions: {
+      attempts: VOICE_CONFIRM_RETRY.attempts,
+      backoff: VOICE_CONFIRM_RETRY.backoff,
+      removeOnComplete: { count: 500 },
+      removeOnFail: { count: 200 },
+    },
+  }),
 } as const;
 
 export type QueueName = keyof typeof queues;
 
 function startWorker(name: QueueName): Worker {
+  if (name === 'voiceConfirm') {
+    return new Worker('voice-confirm', processVoiceConfirm, {
+      connection,
+      concurrency: 5,
+    });
+  }
+
   return new Worker(
     name,
     async (job) => {
