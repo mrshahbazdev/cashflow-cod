@@ -8,7 +8,6 @@
   assign cf_api = block.settings.api_origin | default: 'https://cashflow-cod-production-2aff.up.railway.app'
   assign cf_slug = block.settings.form_slug | default: 'default'
   assign cf_label = block.settings.button_label | default: 'Buy with Cash on Delivery'
-  assign cf_size = block.settings.button_size | default: 'medium'
   assign cf_radius = block.settings.button_radius | default: 10
   assign cf_font_size = block.settings.font_size | default: 16
   assign cf_pad_x = block.settings.padding_x | default: 22
@@ -227,8 +226,8 @@
       "type": "text",
       "id": "api_origin",
       "label": "API origin (override)",
-      "default": "",
-      "info": "Leave empty to use the default Cashflow COD app URL. Only set this if you self-host the admin app on a custom domain."
+      "default": "https://cashflow-cod-production-2aff.up.railway.app",
+      "info": "Default points at the official Cashflow COD app. Only change if you self-host on a custom domain."
     }
   ]
 }

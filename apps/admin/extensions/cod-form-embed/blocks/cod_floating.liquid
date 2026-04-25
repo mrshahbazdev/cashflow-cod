@@ -213,10 +213,11 @@
       "id": "button_radius",
       "label": "Corner radius",
       "min": 0,
-      "max": 999,
+      "max": 100,
       "step": 1,
       "unit": "px",
-      "default": 999
+      "default": 100,
+      "info": "Use 100 for a fully-rounded pill button."
     },
     {
       "type": "range",
@@ -246,8 +247,8 @@
       "type": "text",
       "id": "api_origin",
       "label": "API origin (override)",
-      "default": "",
-      "info": "Leave empty to use the default Cashflow COD app URL."
+      "default": "https://cashflow-cod-production-2aff.up.railway.app",
+      "info": "Default points at the official Cashflow COD app. Only change if you self-host on a custom domain."
     }
   ]
 }
