@@ -87,7 +87,50 @@
     });
   }
 
+  function readCookie(name) {
+    try {
+      var pairs = (document.cookie || '').split(';');
+      for (var i = 0; i < pairs.length; i++) {
+        var p = pairs[i].split('=');
+        if ((p[0] || '').trim() === name) {
+          return decodeURIComponent((p[1] || '').trim());
+        }
+      }
+    } catch (e) {
+      /* noop */
+    }
+    return undefined;
+  }
+
+  function readQuery(name) {
+    try {
+      var u = new URL(window.location.href);
+      return u.searchParams.get(name) || undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  function trackingContext() {
+    var fbc = readCookie('_fbc');
+    var fbclid = readQuery('fbclid');
+    if (!fbc && fbclid) {
+      // Synthesize an _fbc value per Meta's spec when only the click id is in the URL.
+      fbc = 'fb.1.' + Date.now() + '.' + fbclid;
+    }
+    return {
+      fbp: readCookie('_fbp'),
+      fbc: fbc,
+      ttclid: readQuery('ttclid') || readCookie('_ttclid'),
+      ttp: readCookie('_ttp'),
+      scClickId: readQuery('ScCid') || readCookie('_scid'),
+      epik: readCookie('_epik'),
+      sourceUrl: window.location.href,
+    };
+  }
+
   function postSubmission(cfg, payload) {
+    payload.tracking = trackingContext();
     return postJson(cfg, '/api/public/submissions', payload);
   }
   function requestOtp(cfg, submissionId) {
@@ -99,6 +142,7 @@
       code: code,
       productId: productId,
       variantId: variantId,
+      tracking: trackingContext(),
     });
   }
 

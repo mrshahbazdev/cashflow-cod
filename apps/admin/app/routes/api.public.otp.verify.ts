@@ -5,6 +5,7 @@ import prisma from '../db.server';
 import { preflight, withCors } from '../lib/cors.server';
 import { verifyOtpForSubmission } from '../lib/otp.server';
 import { createDraftOrderForSubmission } from '../lib/shopify-orders.server';
+import { contextFromOrder, firePixelsForShop } from '../lib/pixels.server';
 
 export const loader = async () => withCors(json({ error: 'Method not allowed' }, { status: 405 }));
 
@@ -14,7 +15,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(json({ error: 'Method not allowed' }, { status: 405 }));
   }
 
-  let body: { submissionId?: string; code?: string; productId?: string; variantId?: string };
+  let body: {
+    submissionId?: string;
+    code?: string;
+    productId?: string;
+    variantId?: string;
+    tracking?: {
+      fbp?: string;
+      fbc?: string;
+      ttclid?: string;
+      ttp?: string;
+      scClickId?: string;
+      epik?: string;
+      sourceUrl?: string;
+    };
+  };
   try {
     body = await request.json();
   } catch {
@@ -61,6 +76,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await prisma.submission.update({
       where: { id: submissionId },
       data: { status: 'CONVERTED' },
+    });
+    const xff = request.headers.get('x-forwarded-for') ?? '';
+    const ip = xff.split(',')[0]?.trim() || null;
+    void firePixelsForShop({
+      shopId: submission.form.shopId,
+      event: 'Purchase',
+      ctx: contextFromOrder({
+        order,
+        form: submission.form,
+        submission,
+        client: {
+          ...(body.tracking ?? {}),
+          ip,
+          userAgent: request.headers.get('user-agent'),
+          sourceUrl: body.tracking?.sourceUrl ?? `https://${submission.form.shop.domain}/`,
+        },
+        productId: productId ?? null,
+        variantId: variantId ?? null,
+      }),
     });
     return withCors(
       json({

@@ -27,6 +27,7 @@
     "@cashflow-cod/form-schema": "workspace:*",
     "@cashflow-cod/messaging": "workspace:*",
     "@cashflow-cod/payments": "workspace:*",
+    "@cashflow-cod/pixels": "workspace:*",
     "@cashflow-cod/shared-types": "workspace:*",
     "@hello-pangea/dnd": "^18.0.1",
     "@prisma/client": "^6.2.1",
