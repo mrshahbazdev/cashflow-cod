@@ -25,32 +25,39 @@ export async function getForm(shopId: string, id: string) {
   return prisma.form.findFirst({ where: { id, shopId } });
 }
 
+/**
+ * Resolve the magic 'default' slug to a real form slug:
+ *   1. settings.defaultFormSlug (chosen via /app/settings)
+ *   2. fall back to the most recently updated active form on the shop
+ *   3. if neither resolves, return the original 'default' (caller will 404)
+ *
+ * For any non-'default' slug, returns the input unchanged. This lets every
+ * public API endpoint (form fetch, submissions, OTP, abandonment recovery,
+ * upsells) accept 'default' without each route reimplementing the logic.
+ */
+export async function resolveFormSlug(shopDomain: string, slug: string): Promise<string> {
+  if (slug !== 'default') return slug;
+  const shop = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    select: { id: true, settings: true },
+  });
+  const settings = (shop?.settings as Record<string, unknown> | null) ?? {};
+  const configured =
+    typeof settings.defaultFormSlug === 'string' && settings.defaultFormSlug.length > 0
+      ? settings.defaultFormSlug
+      : null;
+  if (configured) return configured;
+  if (!shop) return slug;
+  const fallback = await prisma.form.findFirst({
+    where: { shopId: shop.id, isActive: true },
+    orderBy: { updatedAt: 'desc' },
+    select: { slug: true },
+  });
+  return fallback?.slug ?? slug;
+}
+
 export async function getFormBySlug(shopDomain: string, slug: string) {
-  // "default" is a magic slug that resolves to the merchant's chosen
-  // default form (settings.defaultFormSlug) — or, if unset, the most
-  // recently updated active form. This lets theme blocks ship with a
-  // sensible default value that "just works" without asking the merchant
-  // to copy/paste a slug.
-  let resolvedSlug = slug;
-  if (slug === 'default') {
-    const shop = await prisma.shop.findUnique({
-      where: { domain: shopDomain },
-      select: { id: true, settings: true },
-    });
-    const settings = (shop?.settings as Record<string, unknown> | null) ?? {};
-    const configured =
-      typeof settings.defaultFormSlug === 'string' ? settings.defaultFormSlug : null;
-    if (configured) {
-      resolvedSlug = configured;
-    } else if (shop) {
-      const fallback = await prisma.form.findFirst({
-        where: { shopId: shop.id, isActive: true },
-        orderBy: { updatedAt: 'desc' },
-        select: { slug: true },
-      });
-      if (fallback) resolvedSlug = fallback.slug;
-    }
-  }
+  const resolvedSlug = await resolveFormSlug(shopDomain, slug);
 
   const form = await prisma.form.findFirst({
     where: {

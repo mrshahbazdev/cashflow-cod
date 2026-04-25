@@ -3,6 +3,7 @@ import { json } from '@remix-run/node';
 import { formSchema } from '@cashflow-cod/form-schema';
 import prisma from '../db.server';
 import { postOnlyLoader, preflight, withCors } from '../lib/cors.server';
+import { resolveFormSlug } from '../lib/forms.server';
 import { submitForOrder } from '../lib/submissions.server';
 
 export const loader = postOnlyLoader;
@@ -46,8 +47,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(json({ error: 'Missing required fields' }, { status: 400 }));
   }
 
+  const resolvedSlug = await resolveFormSlug(shop, formSlug);
   const form = await prisma.form.findFirst({
-    where: { slug: formSlug, shop: { domain: shop }, isActive: true },
+    where: { slug: resolvedSlug, shop: { domain: shop }, isActive: true },
     include: { shop: true },
   });
   if (!form) {
