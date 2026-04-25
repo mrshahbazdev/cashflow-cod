@@ -25,6 +25,26 @@ const LANGUAGE_NAMES: Record<string, string> = {
   hi: 'Hindi (हिन्दी)',
   fr: 'Français',
   es: 'Español',
+  it: 'Italiano',
+  de: 'Deutsch',
+  nl: 'Nederlands',
+  pt: 'Português',
+  'pt-br': 'Português (Brasil)',
+  'pt-pt': 'Português (Portugal)',
+  pl: 'Polski',
+  sv: 'Svenska',
+  nb: 'Norsk (Bokmål)',
+  no: 'Norsk',
+  da: 'Dansk',
+  fi: 'Suomi',
+  cs: 'Čeština',
+  tr: 'Türkçe',
+  th: 'ไทย',
+  ja: '日本語',
+  ko: '한국어',
+  zh: '中文',
+  'zh-cn': '中文 (简体)',
+  'zh-tw': '中文 (繁體)',
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -101,9 +121,8 @@ export default function I18nRoute() {
                     <input key={code} type="hidden" name="enabled" value={code} />
                   ))}
                   <Text as="p" tone="subdued">
-                    Visitors can override the language at runtime with{' '}
-                    <code>?lang=xx</code> on the form URL. RTL languages flip the layout
-                    automatically.
+                    Visitors can override the language at runtime with <code>?lang=xx</code> on the
+                    form URL. RTL languages flip the layout automatically.
                   </Text>
                   <InlineStack align="end">
                     <Button submit variant="primary">

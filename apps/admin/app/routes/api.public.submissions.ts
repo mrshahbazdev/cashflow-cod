@@ -30,6 +30,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       epik?: string;
       sourceUrl?: string;
     };
+    discountCode?: string | null;
+    cartSubtotal?: number;
+    quantity?: number;
+    unitPrice?: number;
   };
   try {
     body = await request.json();
@@ -71,6 +75,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       productId: body.productId ?? null,
       variantId: body.variantId ?? null,
       tracking: body.tracking ? { ...body.tracking, ip, userAgent } : { ip, userAgent },
+      discountCode: body.discountCode ?? null,
+      cartSubtotal: body.cartSubtotal,
+      quantity: body.quantity,
+      unitPrice: body.unitPrice,
     });
     return withCors(json(result));
   } catch (err) {

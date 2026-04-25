@@ -39,6 +39,8 @@ export default function AppLayout() {
         <Link to="/app/landing">Landing pages</Link>
         <Link to="/app/payments">Payments</Link>
         <Link to="/app/i18n">Languages</Link>
+        <Link to="/app/currency">Currency</Link>
+        <Link to="/app/places">Address autocomplete</Link>
         <Link to="/app/shipping">Shipping</Link>
         <Link to="/app/integrations">Integrations</Link>
         <Link to="/app/settings">Settings</Link>

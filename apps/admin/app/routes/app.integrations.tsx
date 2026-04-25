@@ -117,6 +117,10 @@ export default function IntegrationsRoute() {
     <Page
       title="Integrations"
       subtitle="Connect Meta, TikTok, Google, Snapchat, and Pinterest pixels with server-side Conversions API for accurate iOS 14+ attribution."
+      secondaryActions={[
+        { content: 'Marketing & data sinks', url: '/app/integrations/sinks' },
+        { content: 'Outbound webhooks', url: '/app/integrations/webhooks' },
+      ]}
     >
       <Layout>
         <Layout.Section>

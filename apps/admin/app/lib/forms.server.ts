@@ -26,7 +26,7 @@ export async function getForm(shopId: string, id: string) {
 }
 
 export async function getFormBySlug(shopDomain: string, slug: string) {
-  return prisma.form.findFirst({
+  const form = await prisma.form.findFirst({
     where: {
       slug,
       shop: { domain: shopDomain },
@@ -39,8 +39,48 @@ export async function getFormBySlug(shopDomain: string, slug: string) {
       layout: true,
       placement: true,
       schema: true,
+      shop: {
+        select: {
+          defaultLanguage: true,
+          enabledLanguages: true,
+          settings: true,
+        },
+      },
     },
   });
+  if (!form) return null;
+  const settings = (form.shop?.settings as Record<string, unknown> | null) ?? {};
+  // Strip server-only secrets before returning to the public widget. We keep
+  // the publishable Google Places key here because Google enforces HTTP
+  // referrer restrictions on the key itself.
+  const placesKey = typeof settings.googlePlacesKey === 'string' ? settings.googlePlacesKey : null;
+  return {
+    ...form,
+    shop: undefined,
+    i18n: {
+      defaultLanguage: form.shop?.defaultLanguage ?? 'en',
+      enabledLanguages: (form.shop?.enabledLanguages as string[] | null) ?? ['en'],
+    },
+    currency: {
+      base: typeof settings.currency === 'string' ? settings.currency : 'USD',
+      enabled:
+        Array.isArray(settings.enabledCurrencies) &&
+        settings.enabledCurrencies.every((s) => typeof s === 'string')
+          ? (settings.enabledCurrencies as string[])
+          : [typeof settings.currency === 'string' ? settings.currency : 'USD'],
+      locale: typeof settings.locale === 'string' ? settings.locale : null,
+    },
+    places: placesKey
+      ? {
+          enabled: true,
+          publishableKey: placesKey,
+          countries:
+            typeof settings.googlePlacesCountries === 'string'
+              ? settings.googlePlacesCountries
+              : null,
+        }
+      : { enabled: false, publishableKey: null, countries: null },
+  };
 }
 
 function slugify(input: string) {

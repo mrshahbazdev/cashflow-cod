@@ -6,6 +6,8 @@ import { preflight, withCors } from '../lib/cors.server';
 import { verifyOtpForSubmission } from '../lib/otp.server';
 import { createDraftOrderForSubmission } from '../lib/shopify-orders.server';
 import { contextFromOrder, firePixelsForShop } from '../lib/pixels.server';
+import { dispatchSinkEvent } from '../lib/sinks';
+import { dispatchWebhook } from '../lib/webhooks.server';
 
 export const loader = async () => withCors(json({ error: 'Method not allowed' }, { status: 405 }));
 
@@ -95,6 +97,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         productId: productId ?? null,
         variantId: variantId ?? null,
       }),
+    });
+    void dispatchSinkEvent(submission.form.shopId, {
+      kind: 'order.placed',
+      order,
+      submission,
+      form: submission.form,
+      shop: submission.form.shop,
+    });
+    void dispatchWebhook(submission.form.shopId, {
+      topic: 'order.placed',
+      data: {
+        orderId: order.shopifyOrderId ?? order.id,
+        shopifyOrderId: order.shopifyOrderId,
+        total: order.total,
+        currency: order.currency,
+        customerName: order.customerName,
+        email: order.email,
+        phone: order.phone,
+        addressLine1: order.addressLine1,
+        city: order.city,
+        country: order.country,
+        postalCode: order.postalCode,
+        formSlug: submission.form.slug,
+        viaOtp: true,
+      },
     });
     return withCors(
       json({
