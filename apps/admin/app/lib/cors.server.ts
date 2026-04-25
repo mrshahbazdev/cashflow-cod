@@ -1,7 +1,9 @@
+import { json } from '@remix-run/node';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Accept, X-Requested-With',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept, X-Requested-With, Authorization',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -22,4 +24,17 @@ export function corsHeaders(_request: Request): HeadersInit {
 
 export function handleOptions(_request: Request): Response {
   return preflight();
+}
+
+/**
+ * Standard loader for POST-only public API routes. In Remix, OPTIONS
+ * preflight requests are routed to `loader` (alongside GET), so the
+ * loader must return a 2xx CORS-headered response for the browser to
+ * accept the preflight. Without this, the browser rejects the actual
+ * POST with "Response to preflight request doesn't pass access control
+ * check: It does not have HTTP ok status."
+ */
+export function postOnlyLoader({ request }: { request: Request }): Response {
+  if (request.method === 'OPTIONS') return preflight();
+  return withCors(json({ error: 'Method not allowed' }, { status: 405 }));
 }

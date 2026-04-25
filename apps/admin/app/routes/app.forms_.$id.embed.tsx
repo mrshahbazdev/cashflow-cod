@@ -40,7 +40,7 @@ function CodeBlock({ code }: { code: string }) {
 
 export default function FormEmbedRoute() {
   const data = useLoaderData<typeof loader>();
-  const apiOrigin = data.apiOrigin || 'https://your-cashflow-cod-app.example';
+  const apiOrigin = data.apiOrigin || 'https://cashflow-cod-production-2aff.up.railway.app';
 
   const inlineSnippet = `<div
   class="cashflow-cod-root"

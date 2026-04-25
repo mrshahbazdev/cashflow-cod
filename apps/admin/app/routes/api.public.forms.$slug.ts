@@ -4,6 +4,7 @@ import { getFormBySlug } from '../lib/forms.server';
 import { preflight, withCors } from '../lib/cors.server';
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  if (request.method === 'OPTIONS') return preflight();
   const url = new URL(request.url);
   const shop = url.searchParams.get('shop');
   const slug = params.slug;
