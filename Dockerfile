@@ -14,6 +14,7 @@ COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/form-schema/package.json packages/form-schema/
 COPY packages/couriers/package.json packages/couriers/
 COPY packages/messaging/package.json packages/messaging/
+COPY packages/payments/package.json packages/payments/
 COPY packages/pixels/package.json packages/pixels/
 RUN pnpm install --frozen-lockfile
 
