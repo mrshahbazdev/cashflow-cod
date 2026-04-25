@@ -65,12 +65,35 @@ export async function loader({ request }: LoaderFunctionArgs) {
 type ActionResult =
   | { kind: 'probe-online'; ok: boolean; raw: string }
   | { kind: 'probe-offline'; ok: boolean; raw: string }
+  | { kind: 'probe-rest-online'; ok: boolean; status: number; raw: string }
+  | { kind: 'probe-rest-offline'; ok: boolean; status: number; raw: string }
   | { kind: 'reset-offline'; ok: boolean; deleted: number };
+
+// shopify-app-remix sometimes throws the raw Response object instead of an
+// Error subclass — String(response) returns "[object Response]" which is
+// useless. Try harder to surface the actual body.
+async function explainError(err: unknown): Promise<string> {
+  if (err instanceof Error) return `${err.name}: ${err.message}`;
+  if (err instanceof Response) {
+    let body = '';
+    try {
+      body = await err.text();
+    } catch {
+      body = '(unreadable)';
+    }
+    return `Response status=${err.status} ${err.statusText}\n` +
+      `headers=${JSON.stringify(Object.fromEntries(err.headers.entries()))}\n` +
+      `body=${body}`;
+  }
+  if (err && typeof err === 'object') return JSON.stringify(err, null, 2);
+  return String(err);
+}
 
 export async function action({ request }: ActionFunctionArgs) {
   const { session, admin } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = form.get('intent');
+  const apiVersion = (form.get('apiVersion') as string) || '2025-01';
 
   if (intent === 'probe-online') {
     try {
@@ -85,7 +108,7 @@ export async function action({ request }: ActionFunctionArgs) {
       return json<ActionResult>({
         kind: 'probe-online',
         ok: false,
-        raw: err instanceof Error ? err.message : String(err),
+        raw: await explainError(err),
       });
     }
   }
@@ -105,9 +128,50 @@ export async function action({ request }: ActionFunctionArgs) {
       return json<ActionResult>({
         kind: 'probe-offline',
         ok: false,
-        raw: err instanceof Error ? err.message : String(err),
+        raw: await explainError(err),
       });
     }
+  }
+
+  // Direct REST fetch with X-Shopify-Access-Token header — bypasses the
+  // shopify-app-remix wrapper completely. If this also returns 403 the
+  // problem is at the Shopify edge, not in our code.
+  if (intent === 'probe-rest-online' || intent === 'probe-rest-offline') {
+    const useOnline = intent === 'probe-rest-online';
+    const sessionRow = await prisma.session.findFirst({
+      where: { shop: session.shop, isOnline: useOnline },
+      orderBy: { expires: 'desc' },
+    });
+    if (!sessionRow) {
+      return json<ActionResult>({
+        kind: useOnline ? 'probe-rest-online' : 'probe-rest-offline',
+        ok: false,
+        status: 0,
+        raw: `No ${useOnline ? 'online' : 'offline'} session row in DB`,
+      });
+    }
+    const url = `https://${session.shop}/admin/api/${apiVersion}/shop.json`;
+    let status = 0;
+    let body = '';
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'X-Shopify-Access-Token': sessionRow.accessToken,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      });
+      status = res.status;
+      body = await res.text();
+    } catch (fetchErr) {
+      body = `fetch threw: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`;
+    }
+    return json<ActionResult>({
+      kind: useOnline ? 'probe-rest-online' : 'probe-rest-offline',
+      ok: status >= 200 && status < 300,
+      status,
+      raw: `URL: ${url}\nstatus=${status}\nbody=${body.slice(0, 4000)}`,
+    });
   }
 
   if (intent === 'reset-offline') {
@@ -212,7 +276,7 @@ export default function DebugShopify() {
                   }
                   onClick={() => submit('probe-online')}
                 >
-                  Probe ONLINE token
+                  Probe ONLINE (GraphQL)
                 </Button>
                 <Button
                   loading={
@@ -221,9 +285,33 @@ export default function DebugShopify() {
                   }
                   onClick={() => submit('probe-offline')}
                 >
-                  Probe OFFLINE token
+                  Probe OFFLINE (GraphQL)
+                </Button>
+                <Button
+                  loading={
+                    fetcher.state !== 'idle' &&
+                    (fetcher.formData?.get('intent') ?? '') === 'probe-rest-online'
+                  }
+                  onClick={() => submit('probe-rest-online')}
+                >
+                  Probe ONLINE (REST, raw fetch)
+                </Button>
+                <Button
+                  loading={
+                    fetcher.state !== 'idle' &&
+                    (fetcher.formData?.get('intent') ?? '') === 'probe-rest-offline'
+                  }
+                  onClick={() => submit('probe-rest-offline')}
+                >
+                  Probe OFFLINE (REST, raw fetch)
                 </Button>
               </InlineStack>
+              <Text as="p" variant="bodySm" tone="subdued">
+                REST probes bypass shopify-app-remix entirely — they issue a
+                bare <code>fetch()</code> with the access token, so they tell us
+                whether Shopify is rejecting the token at the edge or whether
+                only our wrapper sees the 403.
+              </Text>
             </BlockStack>
           </Card>
         </Layout.Section>
