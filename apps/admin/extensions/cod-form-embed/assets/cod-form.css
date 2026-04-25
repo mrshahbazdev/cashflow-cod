@@ -647,6 +647,302 @@
   margin: 8px 0 0;
 }
 
+/* ---------- Product card inside form ---------- */
+.cashflow-cod-product-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  margin-bottom: 18px;
+  background: var(--cf-bg-soft);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-radius-sm);
+}
+.cashflow-cod-product-card img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex: 0 0 64px;
+  background: var(--cf-border);
+}
+.cashflow-cod-product-card-info {
+  flex: 1;
+  min-width: 0;
+}
+.cashflow-cod-product-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--cf-text);
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cashflow-cod-product-card-variant {
+  font-size: 0.8rem;
+  color: var(--cf-text-muted);
+  margin: 0 0 2px;
+}
+.cashflow-cod-product-card-price {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--cf-accent);
+  margin: 0;
+}
+
+/* ---------- Quantity selector ---------- */
+.cashflow-cod-qty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 10px 14px;
+  background: var(--cf-bg-soft);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-radius-sm);
+}
+.cashflow-cod-qty-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--cf-text);
+  flex: 1;
+}
+.cashflow-cod-qty-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.cashflow-cod-qty-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cf-border);
+  background: var(--cf-bg);
+  color: var(--cf-text);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+.cashflow-cod-qty-btn:first-child { border-radius: 6px 0 0 6px; }
+.cashflow-cod-qty-btn:last-child { border-radius: 0 6px 6px 0; }
+.cashflow-cod-qty-btn:hover { background: var(--cf-bg-soft); }
+.cashflow-cod-qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cashflow-cod-qty-value {
+  width: 40px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cf-text);
+  border-top: 1px solid var(--cf-border);
+  border-bottom: 1px solid var(--cf-border);
+  border-left: none;
+  border-right: none;
+  height: 36px;
+  line-height: 36px;
+  background: var(--cf-bg);
+}
+
+/* ---------- Enhanced success / thank-you ---------- */
+.cashflow-cod-success-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: var(--cf-success-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cashflow-cod-check-pop 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes cashflow-cod-check-pop {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.cashflow-cod-success-icon svg {
+  width: 32px;
+  height: 32px;
+  stroke: var(--cf-success);
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cashflow-cod-share {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.cashflow-cod-share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--cf-border);
+  background: var(--cf-bg);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+  padding: 0;
+}
+.cashflow-cod-share-btn:hover {
+  background: var(--cf-bg-soft);
+  transform: scale(1.1);
+}
+.cashflow-cod-share-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Button animations ---------- */
+.cashflow-cod-anim-pulse {
+  animation: cashflow-cod-pulse 2s ease-in-out infinite;
+}
+@keyframes cashflow-cod-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--cf-accent-rgb, 0, 128, 96), 0.5); }
+  50% { box-shadow: 0 0 0 12px rgba(var(--cf-accent-rgb, 0, 128, 96), 0); }
+}
+.cashflow-cod-anim-glow {
+  animation: cashflow-cod-glow 2s ease-in-out infinite;
+}
+@keyframes cashflow-cod-glow {
+  0%, 100% { box-shadow: 0 0 8px 0 rgba(var(--cf-accent-rgb, 0, 128, 96), 0.3); }
+  50% { box-shadow: 0 0 20px 4px rgba(var(--cf-accent-rgb, 0, 128, 96), 0.5); }
+}
+.cashflow-cod-anim-shake {
+  animation: cashflow-cod-shake 4s ease-in-out infinite;
+}
+@keyframes cashflow-cod-shake {
+  0%, 88%, 100% { transform: translateX(0); }
+  90% { transform: translateX(-4px); }
+  92% { transform: translateX(4px); }
+  94% { transform: translateX(-3px); }
+  96% { transform: translateX(3px); }
+  98% { transform: translateX(-1px); }
+}
+.cashflow-cod-anim-bounce {
+  animation: cashflow-cod-bounce 2s ease infinite;
+}
+@keyframes cashflow-cod-bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  85% { transform: translateY(-6px); }
+  90% { transform: translateY(0); }
+  95% { transform: translateY(-3px); }
+}
+
+/* ---------- Dark mode ---------- */
+@media (prefers-color-scheme: dark) {
+  .cashflow-cod-widget,
+  .cashflow-cod-backdrop .cashflow-cod-modal {
+    --cf-bg: #1e293b;
+    --cf-bg-soft: #0f172a;
+    --cf-text: #f1f5f9;
+    --cf-text-soft: #cbd5e1;
+    --cf-text-muted: #94a3b8;
+    --cf-border: #334155;
+    --cf-border-strong: #475569;
+    --cf-success: #22c55e;
+    --cf-success-bg: rgba(34, 197, 94, 0.15);
+    --cf-danger: #f87171;
+    --cf-danger-bg: rgba(248, 113, 113, 0.1);
+    --cf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --cf-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --cf-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.5);
+  }
+  .cashflow-cod-backdrop {
+    background: rgba(0, 0, 0, 0.65);
+  }
+  .cashflow-cod-close {
+    background: rgba(241, 245, 249, 0.08);
+    color: var(--cf-text-soft);
+  }
+  .cashflow-cod-close:hover {
+    background: rgba(241, 245, 249, 0.15);
+  }
+  .cashflow-cod-banner {
+    background: rgba(248, 113, 113, 0.12);
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #fca5a5;
+  }
+}
+
+/* ---------- Enhanced mobile responsiveness ---------- */
+@media (max-width: 600px) {
+  .cashflow-cod-container {
+    padding: 20px 16px;
+  }
+  .cashflow-cod-title {
+    font-size: 1.3rem;
+  }
+  .cashflow-cod-stepper {
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .cashflow-cod-stepper::-webkit-scrollbar { display: none; }
+  .cashflow-cod-step {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    font-size: 0.82rem;
+  }
+  .cashflow-cod-widget input[type='text'],
+  .cashflow-cod-widget input[type='email'],
+  .cashflow-cod-widget input[type='tel'],
+  .cashflow-cod-widget select,
+  .cashflow-cod-widget textarea {
+    padding: 14px;
+    font-size: 16px;
+  }
+  .cashflow-cod-radio,
+  .cashflow-cod-checkbox {
+    padding: 12px 14px;
+    font-size: 1rem;
+  }
+  .cashflow-cod-nav {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .cashflow-cod-submit,
+  .cashflow-cod-next,
+  .cashflow-cod-prev {
+    width: 100%;
+    justify-content: center;
+    padding: 16px;
+    font-size: 1.05rem;
+  }
+  .cashflow-cod-prev {
+    order: 1;
+  }
+  .cashflow-cod-close {
+    width: 36px;
+    height: 36px;
+    font-size: 1.4rem;
+  }
+  .cashflow-cod-product-card img {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+  }
+  .cashflow-cod-qty-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1.2rem;
+  }
+  .cashflow-cod-qty-value {
+    height: 44px;
+    line-height: 44px;
+  }
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .cashflow-cod-modal,
@@ -655,8 +951,15 @@
   .cashflow-cod-trigger,
   .cashflow-cod-submit,
   .cashflow-cod-next,
-  .cashflow-cod-prev {
+  .cashflow-cod-prev,
+  .cashflow-cod-success-icon {
     animation: none !important;
     transition: none !important;
+  }
+  .cashflow-cod-anim-pulse,
+  .cashflow-cod-anim-glow,
+  .cashflow-cod-anim-shake,
+  .cashflow-cod-anim-bounce {
+    animation: none !important;
   }
 }

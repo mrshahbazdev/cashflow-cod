@@ -10,6 +10,7 @@ import { dispatchWebhook } from './webhooks.server';
 import { recordDiscountRedemption, validateDiscount } from './discounts.server';
 import { bestQuantityDiscount } from './quantity-offers.server';
 import { validatePostalCode } from './address.server';
+import { sendWhatsAppOrderConfirmation } from './whatsapp-confirm.server';
 
 type SubmitInput = {
   form: Form & { shop: Shop };
@@ -378,6 +379,19 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
         postalCode: orderRow.postalCode,
         formSlug: form.slug,
       },
+    });
+  }
+
+  if (orderRow && phoneNormalized) {
+    const shopSettings = (form.shop.settings ?? {}) as Record<string, unknown>;
+    const currencyStr = (shopSettings.currency as string) ?? 'PKR';
+    void sendWhatsAppOrderConfirmation({
+      shopId: form.shopId,
+      phone: phoneNormalized,
+      customerName: orderRow.customerName ?? undefined,
+      orderId: orderRow.shopifyOrderId ?? orderRow.id,
+      orderTotal: orderRow.total ? String(orderRow.total) : undefined,
+      currency: currencyStr,
     });
   }
 

@@ -80,6 +80,11 @@
       productId: root.dataset.productId || null,
       variantId: root.dataset.variantId || null,
       productHandle: root.dataset.productHandle || null,
+      productTitle: root.dataset.productTitle || null,
+      productImage: root.dataset.productImage || null,
+      productPrice: root.dataset.productPrice || null,
+      productVariantTitle: root.dataset.productVariantTitle || null,
+      btnAnimation: root.dataset.btnAnimation || 'none',
       apiOrigin: sanitizeApiOrigin(root.dataset.api),
     };
   }
@@ -348,7 +353,9 @@
       '/api/public/forms/' +
       encodeURIComponent(cfg.formSlug) +
       '?shop=' +
-      encodeURIComponent(cfg.shop);
+      encodeURIComponent(cfg.shop) +
+      '&visitor=' +
+      encodeURIComponent(visitorId());
     return fetch(url, { method: 'GET', credentials: 'omit' }).then(function (r) {
       if (!r.ok) throw new Error('Form not available');
       return r.json();
@@ -644,6 +651,77 @@
       ';}';
   }
 
+  function renderProductCard(cfg) {
+    if (!cfg.productTitle) return null;
+    var card = el('div', { class: 'cashflow-cod-product-card' });
+    if (cfg.productImage) {
+      card.appendChild(el('img', { src: cfg.productImage, alt: cfg.productTitle, loading: 'lazy' }));
+    }
+    var info = el('div', { class: 'cashflow-cod-product-card-info' });
+    info.appendChild(el('p', { class: 'cashflow-cod-product-card-title' }, [cfg.productTitle]));
+    if (cfg.productVariantTitle) {
+      info.appendChild(el('p', { class: 'cashflow-cod-product-card-variant' }, [cfg.productVariantTitle]));
+    }
+    if (cfg.productPrice) {
+      info.appendChild(el('p', { class: 'cashflow-cod-product-card-price' }, [formatMoney(cfg, cfg.productPrice)]));
+    }
+    card.appendChild(info);
+    return card;
+  }
+
+  function renderQuantitySelector(cfg, state, render, schema) {
+    if (schema && schema.hideQuantity) return null;
+    var qty = el('div', { class: 'cashflow-cod-qty' });
+    qty.appendChild(el('span', { class: 'cashflow-cod-qty-label' }, [tr(cfg, 'quantity') || 'Quantity']));
+    var controls = el('div', { class: 'cashflow-cod-qty-controls' });
+    controls.appendChild(el('button', {
+      type: 'button', class: 'cashflow-cod-qty-btn',
+      disabled: (state.quantity || 1) <= 1 ? 'disabled' : null,
+      onclick: function () { state.quantity = Math.max(1, (state.quantity || 1) - 1); cfg.quantity = state.quantity; render(); },
+    }, ['\u2212']));
+    controls.appendChild(el('span', { class: 'cashflow-cod-qty-value' }, [String(state.quantity || 1)]));
+    controls.appendChild(el('button', {
+      type: 'button', class: 'cashflow-cod-qty-btn',
+      onclick: function () { state.quantity = (state.quantity || 1) + 1; cfg.quantity = state.quantity; render(); },
+    }, ['+']));
+    qty.appendChild(controls);
+    return qty;
+  }
+
+  function renderSuccessScreen(cfg, state, schema) {
+    var wrap = el('div', { class: 'cashflow-cod-success' });
+    var icon = el('div', { class: 'cashflow-cod-success-icon' });
+    icon.appendChild(el('svg', { viewBox: '0 0 24 24' }, [
+      (function () { var p = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); p.setAttribute('points', '20 6 9 17 4 12'); return p; })(),
+    ]));
+    icon.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    wrap.appendChild(icon);
+    wrap.appendChild(el('h3', null, [schema.successTitle || 'Thank you!']));
+    wrap.appendChild(el('p', null, [state.message || schema.successMessage || 'Your order has been placed.']));
+    if (schema.successCustomHtml) {
+      var custom = el('div', { class: 'cashflow-cod-success-custom' });
+      custom.innerHTML = sanitizeHtml(schema.successCustomHtml);
+      wrap.appendChild(custom);
+    }
+    var share = el('div', { class: 'cashflow-cod-share' });
+    var shareUrl = encodeURIComponent(window.location.href);
+    var shareText = encodeURIComponent(schema.successTitle || 'I just ordered via COD!');
+    share.appendChild(el('button', {
+      type: 'button', class: 'cashflow-cod-share-btn', title: 'WhatsApp',
+      onclick: function () { window.open('https://wa.me/?text=' + shareText + '%20' + shareUrl, '_blank'); },
+    }, [(function () { var d = document.createElement('span'); d.innerHTML = '<svg viewBox="0 0 24 24" fill="#25d366"><path d="M19.05 4.91A10.43 10.43 0 0 0 12 2a10.5 10.5 0 0 0-9.06 15.7L2 22l4.5-1.18A10.5 10.5 0 1 0 19.05 4.91z"/></svg>'; return d.firstChild; })()]));
+    share.appendChild(el('button', {
+      type: 'button', class: 'cashflow-cod-share-btn', title: 'Facebook',
+      onclick: function () { window.open('https://www.facebook.com/sharer/sharer.php?u=' + shareUrl, '_blank'); },
+    }, [(function () { var d = document.createElement('span'); d.innerHTML = '<svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>'; return d.firstChild; })()]));
+    share.appendChild(el('button', {
+      type: 'button', class: 'cashflow-cod-share-btn', title: 'Copy link',
+      onclick: function () { try { navigator.clipboard.writeText(window.location.href); } catch (e) {} },
+    }, [(function () { var d = document.createElement('span'); d.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; return d.firstChild; })()]));
+    wrap.appendChild(share);
+    return wrap;
+  }
+
   function renderForm(cfg, schema, mountInto) {
     var state = {
       stepIdx: 0,
@@ -658,6 +736,7 @@
       discountApplied: false,
       discountAmount: 0,
       discountError: '',
+      quantity: cfg.quantity || 1,
     };
 
     // Preselect defaults
@@ -760,10 +839,11 @@
         productId: cfg.productId,
         variantId: cfg.variantId,
         productHandle: cfg.productHandle,
+        abVariant: cfg.abVariant || null,
         data: state.data,
         discountCode: state.discountApplied ? state.discountCode : null,
         cartSubtotal: cfg.unitPrice && cfg.quantity ? cfg.unitPrice * cfg.quantity : undefined,
-        quantity: cfg.quantity || 1,
+        quantity: state.quantity || 1,
         unitPrice: cfg.unitPrice,
       })
         .then(function (res) {
@@ -946,13 +1026,11 @@
         w.appendChild(stepper);
       }
 
+      var productCard = renderProductCard(cfg);
+      if (productCard) w.appendChild(productCard);
+
       if (state.status === 'success') {
-        w.appendChild(
-          el('div', { class: 'cashflow-cod-success' }, [
-            el('h3', null, ['Thank you!']),
-            el('p', null, [state.message || 'Your order has been placed.']),
-          ]),
-        );
+        w.appendChild(renderSuccessScreen(cfg, state, schema));
       } else if (state.status === 'otp' || state.status === 'verifying') {
         var otpWrap = el('div', { class: 'cashflow-cod-otp' }, [
           el('h3', null, ['Verify your phone']),
@@ -993,6 +1071,9 @@
         ]);
         w.appendChild(otpWrap);
       } else {
+        var qtyEl = renderQuantitySelector(cfg, state, render, schema);
+        if (qtyEl && state.stepIdx === 0) w.appendChild(qtyEl);
+
         var step = schema.steps[state.stepIdx];
         var grid = el('div', { class: 'cashflow-cod-grid' });
         (step.fields || []).forEach(function (f) {
@@ -1155,6 +1236,10 @@
         if (formData.places) cfg.places = formData.places;
         cfg.activeLanguage = resolveLanguage(cfg);
         cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+        if (res.abVariant) cfg.abVariant = res.abVariant;
+        if (res.abSchemaOverride) {
+          for (var k in res.abSchemaOverride) schema[k] = res.abSchemaOverride[k];
+        }
         if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
 
         root.__cashflowCfg = cfg;
@@ -1167,6 +1252,9 @@
         } else {
           var triggerBtn = cfg.root.querySelector('[data-cashflow-cod-trigger]');
           if (triggerBtn) {
+            if (cfg.btnAnimation && cfg.btnAnimation !== 'none') {
+              triggerBtn.classList.add('cashflow-cod-anim-' + cfg.btnAnimation);
+            }
             triggerBtn.addEventListener('click', function () {
               mountPopup(cfg, schema);
             });

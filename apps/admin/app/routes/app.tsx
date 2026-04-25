@@ -35,6 +35,7 @@ export default function AppLayout() {
         <Link to="/app/groups">Merchant groups</Link>
         <Link to="/app/templates">Templates</Link>
         <Link to="/app/inbox">Inbox</Link>
+        <Link to="/app/form-analytics">Form analytics</Link>
         <Link to="/app/ab-tests">A/B tests</Link>
         <Link to="/app/landing">Landing pages</Link>
         <Link to="/app/payments">Payments</Link>
