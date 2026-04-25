@@ -69,6 +69,9 @@ model Shop {
   gdprExports     GdprExport[]
   integrations    Integration[]
   webhookDeliveries WebhookDelivery[]
+  discounts       Discount[]
+  quantityOffers  QuantityOffer[]
+  discountRedemptions DiscountRedemption[]
 
   @@index([domain])
   @@index([merchantGroupId])
@@ -472,6 +475,8 @@ enum UpsellOffer {
   DISCOUNT_FLAT
   FREE_GIFT
   BUNDLE
+  SHIPPING_PROTECTION
+  GIFT_WRAP
 }
 
 model CallSession {
@@ -805,4 +810,72 @@ model WebhookDelivery {
 
   @@index([shopId, createdAt])
   @@index([subscriptionId])
+}
+
+// -----------------------------------------------------------------------------
+// PR-C — Discount codes + quantity offers + extended upsell types
+// -----------------------------------------------------------------------------
+
+/// Merchant-defined discount codes that customers can apply to their COD form
+/// submission. Validated server-side before the draft order is created.
+model Discount {
+  id           String   @id @default(cuid())
+  shopId       String
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  code         String
+  type         String // percent | flat | free_shipping
+  value        Decimal  @default(0) @db.Decimal(10, 2)
+  minSubtotal  Decimal? @db.Decimal(10, 2)
+  appliesTo    String   @default("all") // all | products | collections
+  productIds   Json     @default("[]")
+  startsAt     DateTime?
+  expiresAt    DateTime?
+  usageLimit   Int?
+  usageCount   Int      @default(0)
+  perCustomer  Int?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  redemptions  DiscountRedemption[]
+
+  @@unique([shopId, code])
+  @@index([shopId, isActive])
+}
+
+/// Audit log of discount applications. One row per submission/order that used
+/// a code. Powers per-customer limits and admin-side reporting.
+model DiscountRedemption {
+  id            String   @id @default(cuid())
+  shopId        String
+  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  discountId    String
+  discount      Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  submissionId  String?
+  orderId       String?
+  amount        Decimal  @default(0) @db.Decimal(10, 2)
+  customerKey   String?  // hashed phone/email for per-customer cap
+  createdAt     DateTime @default(now())
+
+  @@index([discountId])
+  @@index([shopId, createdAt])
+}
+
+/// Volume-discount ladder applied to a product or variant (or shop-wide). The
+/// ladder is `[{ minQuantity, discountType, discountValue }]` evaluated at
+/// submission time and persisted as part of the resulting line items.
+model QuantityOffer {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name        String
+  productId   String?  // when null, applies shop-wide
+  variantId   String?
+  ladder      Json     @default("[]") // [{ minQuantity:number, discountType:'percent'|'flat', discountValue:number }]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shopId, isActive])
+  @@index([productId])
+  @@index([variantId])
 }
