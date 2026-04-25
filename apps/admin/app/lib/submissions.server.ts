@@ -9,6 +9,7 @@ import { dispatchSinkEvent } from './sinks';
 import { dispatchWebhook } from './webhooks.server';
 import { recordDiscountRedemption, validateDiscount } from './discounts.server';
 import { bestQuantityDiscount } from './quantity-offers.server';
+import { validatePostalCode } from './address.server';
 
 type SubmitInput = {
   form: Form & { shop: Shop };
@@ -85,6 +86,19 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
   const blocked = await isBlocked(form.shopId, { phone: phoneNormalized, email, ip });
   if (blocked) {
     return { ok: false, error: 'This order cannot be placed. Please contact support.' };
+  }
+
+  const postalCodeValue =
+    (allFields.find((f) => f.type === 'postal_code')?.key
+      ? (data[allFields.find((f) => f.type === 'postal_code')!.key] as string)
+      : null) ?? null;
+  const countryValue =
+    (allFields.find((f) => f.type === 'country')?.key
+      ? (data[allFields.find((f) => f.type === 'country')!.key] as string)
+      : null) ?? null;
+  const postalCheck = validatePostalCode(countryValue, postalCodeValue);
+  if (!postalCheck.ok) {
+    return { ok: false, error: postalCheck.reason ?? 'Invalid postal code' };
   }
 
   const features = await buildRiskFeatures(form.shopId, {
