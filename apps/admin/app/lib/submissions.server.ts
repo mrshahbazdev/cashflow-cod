@@ -266,9 +266,36 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
       where: { id: submission.id },
       data: { status: 'PENDING' },
     });
+    const raw = err instanceof Error ? err.message : 'Unknown error';
+    // The Shopify Admin API now requires merchants to opt into "Protected
+    // Customer Data Access" before any app can read/write a customer's
+    // PII (name, phone, address) on draft orders. Without that approval
+    // every draftOrderCreate mutation fails with a top-level 403 Forbidden
+    // (not a userErrors entry). We return ok:true to the storefront so
+    // the customer sees a success screen — the submission is safely
+    // persisted as PENDING and the merchant can convert it to an order
+    // by hand from the admin until they grant the data-access scope.
+    const isForbidden = /403\s*Forbidden|GraphQL Client:\s*Forbidden/i.test(raw);
+    if (isForbidden) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[Cashflow COD] Shopify order create blocked for shop ${form.shop.domain}: ` +
+          `Protected Customer Data Access not granted. Submission ${submission.id} ` +
+          `saved as PENDING. Merchant must approve customer-data access in the ` +
+          `Partner dashboard (App setup → Customer data → Protected customer data).`,
+      );
+      return {
+        ok: true,
+        submissionId: submission.id,
+        orderId: null,
+        requiresOtp: false,
+        message:
+          'Order received. Our team will contact you shortly to confirm and dispatch.',
+      };
+    }
     return {
       ok: false,
-      error: `Could not create order: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      error: `Could not create order: ${raw}`,
     };
   }
 
