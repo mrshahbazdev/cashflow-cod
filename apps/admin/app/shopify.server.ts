@@ -4,12 +4,31 @@ import { PrismaSessionStorage } from '@shopify/shopify-app-session-storage-prism
 import prisma from './db.server';
 import { ensureShopForSession } from './lib/install.server';
 
+if (!process.env.SHOPIFY_API_KEY) {
+  throw new Error(
+    'SHOPIFY_API_KEY is not set. The Shopify admin auth will return 401 for every request. ' +
+      'Set it to the Client ID from your Shopify Partner Dashboard → App → API credentials.',
+  );
+}
+if (!process.env.SHOPIFY_API_SECRET) {
+  throw new Error(
+    'SHOPIFY_API_SECRET is not set. Session-token validation will fail with 401. ' +
+      'Set it to the Client secret from your Shopify Partner Dashboard → App → API credentials.',
+  );
+}
+if (!process.env.SHOPIFY_APP_URL) {
+  throw new Error(
+    'SHOPIFY_APP_URL is not set. Auth redirects will break. ' +
+      'Set it to your app\'s public URL (e.g. https://cashflow-cod.up.railway.app).',
+  );
+}
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || '',
+  apiSecretKey: process.env.SHOPIFY_API_SECRET,
   apiVersion: ApiVersion.January25,
   scopes: process.env.SCOPES?.split(','),
-  appUrl: process.env.SHOPIFY_APP_URL || '',
+  appUrl: process.env.SHOPIFY_APP_URL,
   authPathPrefix: '/auth',
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
