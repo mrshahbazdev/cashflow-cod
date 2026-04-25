@@ -1,30 +1,70 @@
 {% comment %}
-  Cashflow COD — App Embed Block
-  Injects the COD order form on product pages, cart pages, or custom
-  landing pages. Merchants enable this block in the theme editor under
-  "Apps".
+  Cashflow COD — App Embed Block (target: body)
+  Injects the COD order form on product / cart / landing pages. Merchant
+  enables this in the theme editor under "Apps".
 {% endcomment %}
+
+{% liquid
+  assign cf_api = block.settings.api_origin | default: 'https://cashflow-cod-production-2aff.up.railway.app'
+  assign cf_slug = block.settings.form_slug | default: 'default'
+  assign cf_label = block.settings.button_label | default: 'Buy with Cash on Delivery'
+  assign cf_radius = block.settings.button_radius | default: 10
+  assign cf_font_size = block.settings.font_size | default: 16
+  assign cf_pad_x = block.settings.padding_x | default: 22
+  assign cf_pad_y = block.settings.padding_y | default: 14
+  assign cf_accent = block.settings.accent_color | default: '#008060'
+  assign cf_text_color = block.settings.text_color | default: '#ffffff'
+%}
+
+{% if block.settings.trigger == 'button' %}
+<style>
+  .cashflow-cod-cta-{{ block.id }} {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: {{ cf_pad_y }}px {{ cf_pad_x }}px;
+    font-size: {{ cf_font_size }}px;
+    font-weight: 600;
+    color: {{ cf_text_color }};
+    background: {{ cf_accent }};
+    border: none;
+    border-radius: {{ cf_radius }}px;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      filter 0.18s ease;
+  }
+  .cashflow-cod-cta-{{ block.id }}:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+    filter: brightness(1.04);
+  }
+</style>
+{% endif %}
 
 <div
   id="cashflow-cod-root"
+  data-cashflow-cod-root
   data-shop="{{ shop.permanent_domain }}"
-  data-form-slug="{{ block.settings.form_slug }}"
+  data-form-slug="{{ cf_slug }}"
   data-placement="{{ block.settings.placement }}"
   data-trigger="{{ block.settings.trigger }}"
-  data-accent="{{ block.settings.accent_color }}"
+  data-accent="{{ cf_accent }}"
   data-language="{{ block.settings.language }}"
-  data-api="{{ block.settings.api_origin }}"
+  data-api="{{ cf_api }}"
   data-product-id="{% if product %}{{ product.id }}{% endif %}"
   data-variant-id="{% if product %}{{ product.selected_or_first_available_variant.id }}{% endif %}"
 >
   {% if block.settings.trigger == 'button' %}
     <button
       type="button"
-      class="cashflow-cod-trigger"
+      class="cashflow-cod-cta-{{ block.id }} cashflow-cod-trigger"
       data-cashflow-cod-trigger
-      style="background:{{ block.settings.accent_color }};"
     >
-      {{ block.settings.button_label }}
+      {{ cf_label }}
     </button>
   {% endif %}
 </div>
@@ -45,17 +85,10 @@
     },
     {
       "type": "text",
-      "id": "api_origin",
-      "label": "API origin",
-      "default": "https://your-cashflow-cod-app.example",
-      "info": "The public URL where your Cashflow COD admin app is hosted (e.g. https://cashflow-cod.up.railway.app)."
-    },
-    {
-      "type": "text",
       "id": "form_slug",
       "label": "Form slug",
       "default": "default",
-      "info": "The slug of the form you configured in the Cashflow COD admin."
+      "info": "Leave as 'default' to use your default form, or paste another form slug from /app/forms."
     },
     {
       "type": "select",
@@ -80,18 +113,6 @@
       "default": "button"
     },
     {
-      "type": "text",
-      "id": "button_label",
-      "label": "Button label",
-      "default": "Buy with Cash on Delivery"
-    },
-    {
-      "type": "color",
-      "id": "accent_color",
-      "label": "Accent color",
-      "default": "#008060"
-    },
-    {
       "type": "select",
       "id": "language",
       "label": "Language",
@@ -105,6 +126,83 @@
         { "value": "id", "label": "Indonesian" }
       ],
       "default": "auto"
+    },
+    {
+      "type": "header",
+      "content": "Button"
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Buy with Cash on Delivery"
+    },
+    {
+      "type": "header",
+      "content": "Style"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Background color",
+      "default": "#008060"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Font size",
+      "min": 12,
+      "max": 22,
+      "step": 1,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "range",
+      "id": "button_radius",
+      "label": "Corner radius",
+      "min": 0,
+      "max": 30,
+      "step": 1,
+      "unit": "px",
+      "default": 10
+    },
+    {
+      "type": "range",
+      "id": "padding_y",
+      "label": "Vertical padding",
+      "min": 6,
+      "max": 28,
+      "step": 1,
+      "unit": "px",
+      "default": 14
+    },
+    {
+      "type": "range",
+      "id": "padding_x",
+      "label": "Horizontal padding",
+      "min": 10,
+      "max": 60,
+      "step": 1,
+      "unit": "px",
+      "default": 22
+    },
+    {
+      "type": "header",
+      "content": "Advanced"
+    },
+    {
+      "type": "text",
+      "id": "api_origin",
+      "label": "API origin (override)",
+      "default": "",
+      "info": "Leave empty to use the default Cashflow COD app URL. Only set this if you self-host on a custom domain."
     }
   ]
 }
