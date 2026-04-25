@@ -604,6 +604,8 @@
   }
 
   function styleAccent(accent) {
+    // Drive the entire widget palette from a single CSS custom property so
+    // hover / focus / active surfaces stay in sync with the merchant accent.
     var style = document.getElementById('cashflow-cod-style-accent');
     if (!style) {
       style = document.createElement('style');
@@ -611,20 +613,7 @@
       document.head.appendChild(style);
     }
     style.textContent =
-      '.cashflow-cod-widget .cashflow-cod-submit,' +
-      '.cashflow-cod-widget .cashflow-cod-next {' +
-      'background:' +
-      accent +
-      ';border-color:' +
-      accent +
-      ';}' +
-      '.cashflow-cod-trigger{background:' +
-      accent +
-      ';}' +
-      '.cashflow-cod-widget input:focus,.cashflow-cod-widget select:focus,.cashflow-cod-widget textarea:focus{border-color:' +
-      accent +
-      ';}' +
-      '.cashflow-cod-step.active .cashflow-cod-step-num{background:' +
+      ':root,.cashflow-cod-widget,.cashflow-cod-backdrop,.cashflow-cod-trigger{--cf-accent:' +
       accent +
       ';}';
   }
@@ -901,6 +890,13 @@
       );
       if (schema.subtitle) {
         w.appendChild(el('p', { class: 'cashflow-cod-subtitle' }, [schema.subtitle]));
+      }
+      if (schema.trustBadges && schema.trustBadges.length) {
+        var trust = el('div', { class: 'cashflow-cod-trust' });
+        schema.trustBadges.forEach(function (b) {
+          trust.appendChild(el('span', { class: 'cashflow-cod-trust-badge' }, [String(b)]));
+        });
+        w.appendChild(trust);
       }
       if (schema.steps.length > 1) {
         var stepper = el('div', { class: 'cashflow-cod-stepper' });
