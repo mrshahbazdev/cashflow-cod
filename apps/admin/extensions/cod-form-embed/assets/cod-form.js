@@ -1100,26 +1100,16 @@
     document.body.appendChild(btn);
   }
 
-  function registerSw(cfg) {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-      var swUrl = (cfg.assetBase || '') + '/cod-form-sw.js';
-      navigator.serviceWorker
-        .register(swUrl, { scope: '/' })
-        .then(function (reg) {
-          if (reg && reg.active) {
-            reg.active.postMessage({ type: 'drain-queue' });
-          }
-        })
-        .catch(function () {});
-      window.addEventListener('online', function () {
-        navigator.serviceWorker.getRegistration().then(function (reg) {
-          if (reg && reg.active) reg.active.postMessage({ type: 'drain-queue' });
-        });
-      });
-    } catch (_e) {
-      /* ignore */
-    }
+  // Service-worker registration is intentionally disabled. The offline
+  // submission queue would need cod-form-sw.js to be served from the
+  // merchant's storefront origin (service workers are same-origin only),
+  // but theme app extensions ship their assets from
+  // extensions.shopifycdn.com — so the SW URL resolves to a 404 on the
+  // storefront. We keep the SW source file in the bundle so a future
+  // build step can publish it via the App Proxy if/when offline support
+  // is re-enabled, but we never call register() from the storefront.
+  function registerSw(_cfg) {
+    /* no-op */
   }
 
   function bootRoot(root) {
