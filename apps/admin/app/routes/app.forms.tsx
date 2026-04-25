@@ -76,7 +76,10 @@ export default function FormsRoute() {
     <Page
       title="Forms"
       subtitle="Build COD order forms and publish them to your storefront."
-      primaryAction={undefined}
+      primaryAction={{
+        content: 'Browse templates',
+        url: '/app/templates',
+      }}
     >
       <Layout>
         <Layout.Section>
@@ -99,8 +102,9 @@ export default function FormsRoute() {
                     />
                   </div>
                   <Button submit variant="primary" loading={creating}>
-                    Create form
+                    Create blank form
                   </Button>
+                  <Button url="/app/templates">Start from template</Button>
                 </InlineStack>
               </RemixForm>
             </BlockStack>
@@ -114,8 +118,12 @@ export default function FormsRoute() {
                 <EmptyState
                   heading="No forms yet"
                   image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                  action={{ content: 'Browse templates', url: '/app/templates' }}
+                  secondaryAction={{ content: 'Build from scratch', url: '/app/forms' }}
                 >
-                  <p>Create your first form to start collecting COD orders.</p>
+                  <p>
+                    Pick a ready-made template to launch in 30 seconds, or build from scratch above.
+                  </p>
                 </EmptyState>
               </div>
             ) : (

@@ -6,12 +6,14 @@
 import type { Prisma } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import prisma from '../db.server';
+import { ensureDefaultTemplatesSeeded } from './default-templates.server';
 
 export async function listTemplates(args?: {
   category?: string;
   region?: string;
   featuredOnly?: boolean;
 }) {
+  await ensureDefaultTemplatesSeeded();
   return prisma.formTemplate.findMany({
     where: {
       category: args?.category,

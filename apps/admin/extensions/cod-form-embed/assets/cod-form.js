@@ -42,8 +42,7 @@
     }
   }
 
-  function readConfig() {
-    var root = document.getElementById('cashflow-cod-root');
+  function readConfigFromRoot(root) {
     if (!root) return null;
     return {
       root: root,
@@ -57,6 +56,27 @@
       variantId: root.dataset.variantId || null,
       apiOrigin: root.dataset.api || '',
     };
+  }
+
+  function listRoots() {
+    var nodes = document.querySelectorAll(
+      '#cashflow-cod-root, [data-cashflow-cod-root], .cashflow-cod-root',
+    );
+    var out = [];
+    for (var i = 0; i < nodes.length; i++) out.push(nodes[i]);
+    return out;
+  }
+
+  function defaultApiOrigin() {
+    var anyRoot = listRoots()[0];
+    if (anyRoot && anyRoot.dataset.api) return anyRoot.dataset.api;
+    return '';
+  }
+
+  function defaultShop() {
+    var anyRoot = listRoots()[0];
+    if (anyRoot && anyRoot.dataset.shop) return anyRoot.dataset.shop;
+    return '';
   }
 
   var RTL_LANGS = { ar: 1, ur: 1, he: 1, fa: 1 };
@@ -1081,12 +1101,11 @@
     }
   }
 
-  function boot() {
-    var cfg = readConfig();
+  function bootRoot(root) {
+    if (root.__cashflowBooted) return;
+    root.__cashflowBooted = true;
+    var cfg = readConfigFromRoot(root);
     if (!cfg) return;
-    if (window.__CASHFLOW_COD_BOOTED__) return;
-    window.__CASHFLOW_COD_BOOTED__ = true;
-
     if (!cfg.apiOrigin) {
       if (window.console && console.warn)
         console.warn(
@@ -1094,11 +1113,10 @@
         );
       return;
     }
-
     registerSw(cfg);
     styleAccent(cfg.accent);
 
-    fetchSchema(cfg).then(
+    return fetchSchema(cfg).then(
       function (res) {
         var formData = res && res.form;
         var schema = formData && formData.schema;
@@ -1106,14 +1124,15 @@
           console.warn('[Cashflow COD] No form schema returned');
           return;
         }
-        // Forward shop-level config (i18n/currency/Places) into cfg so all
-        // downstream renderers can read it without a second fetch.
         if (formData.i18n) cfg.i18n = formData.i18n;
         if (formData.currency) cfg.currency = formData.currency;
         if (formData.places) cfg.places = formData.places;
         cfg.activeLanguage = resolveLanguage(cfg);
         cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
         if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+
+        root.__cashflowCfg = cfg;
+        root.__cashflowSchema = schema;
 
         if (cfg.trigger === 'inline') {
           mountInline(cfg, schema, cfg.root);
@@ -1134,5 +1153,111 @@
     );
   }
 
-  onReady(boot);
+  function boot() {
+    var roots = listRoots();
+    for (var i = 0; i < roots.length; i++) bootRoot(roots[i]);
+    if (!window.cashflowCod) {
+      window.cashflowCod = buildPublicApi();
+    }
+  }
+
+  function buildPublicApi() {
+    function ephemeralCfg(opts) {
+      opts = opts || {};
+      var apiOrigin = opts.apiOrigin || defaultApiOrigin();
+      var shop = opts.shop || defaultShop();
+      if (!apiOrigin || !shop) {
+        if (window.console && console.warn)
+          console.warn('[Cashflow COD] cashflowCod.open(): missing apiOrigin or shop.');
+        return null;
+      }
+      return {
+        root: document.body,
+        shop: shop,
+        formSlug: opts.slug || 'default',
+        placement: opts.placement || 'custom',
+        trigger: 'button',
+        accent: opts.accent || '#008060',
+        language: opts.language || 'auto',
+        productId: opts.productId || null,
+        variantId: opts.variantId || null,
+        apiOrigin: apiOrigin,
+      };
+    }
+
+    function open(slug, opts) {
+      var cfg = ephemeralCfg(
+        Object.assign({}, opts || {}, { slug: slug || (opts && opts.slug) || 'default' }),
+      );
+      if (!cfg) return Promise.reject(new Error('Missing apiOrigin/shop'));
+      styleAccent(cfg.accent);
+      return fetchSchema(cfg).then(function (res) {
+        var formData = res && res.form;
+        var schema = formData && formData.schema;
+        if (!schema) throw new Error('No form schema returned');
+        if (formData.i18n) cfg.i18n = formData.i18n;
+        if (formData.currency) cfg.currency = formData.currency;
+        if (formData.places) cfg.places = formData.places;
+        cfg.activeLanguage = resolveLanguage(cfg);
+        cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+        if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+        mountPopup(cfg, schema);
+      });
+    }
+
+    function mountInlineApi(slug, target, opts) {
+      var el = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!el) return Promise.reject(new Error('Target element not found'));
+      var cfg = ephemeralCfg(Object.assign({}, opts || {}, { slug: slug || 'default' }));
+      if (!cfg) return Promise.reject(new Error('Missing apiOrigin/shop'));
+      cfg.root = el;
+      styleAccent(cfg.accent);
+      return fetchSchema(cfg).then(function (res) {
+        var formData = res && res.form;
+        var schema = formData && formData.schema;
+        if (!schema) throw new Error('No form schema returned');
+        if (formData.i18n) cfg.i18n = formData.i18n;
+        if (formData.currency) cfg.currency = formData.currency;
+        if (formData.places) cfg.places = formData.places;
+        cfg.activeLanguage = resolveLanguage(cfg);
+        cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+        if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+        mountInline(cfg, schema, el);
+      });
+    }
+
+    return {
+      open: open,
+      mountInline: mountInlineApi,
+      version: '1.0',
+    };
+  }
+
+  // Auto-bind: any element with [data-cashflow-cod-open="<slug>"] opens the
+  // form on click. Lets merchants drop a CTA anywhere (theme block, custom
+  // section, blog post) without writing JS.
+  function bindOpenAttributes() {
+    document.addEventListener('click', function (ev) {
+      var target = ev.target;
+      while (target && target !== document.body) {
+        if (target.getAttribute && target.hasAttribute('data-cashflow-cod-open')) {
+          var slug = target.getAttribute('data-cashflow-cod-open') || 'default';
+          if (window.cashflowCod && window.cashflowCod.open) {
+            ev.preventDefault();
+            window.cashflowCod.open(slug, {
+              productId: target.getAttribute('data-product-id') || null,
+              variantId: target.getAttribute('data-variant-id') || null,
+            });
+            return;
+          }
+        }
+        target = target.parentNode;
+      }
+    });
+  }
+
+  onReady(function () {
+    boot();
+    bindOpenAttributes();
+  });
 })();
