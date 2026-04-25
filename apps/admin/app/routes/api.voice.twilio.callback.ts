@@ -4,7 +4,7 @@ import { recordCallDisposition } from '../lib/calls.server';
 /**
  * Twilio status/Gather callback. Twilio POSTs application/x-www-form-urlencoded.
  * Expected params: CallSid, CallStatus, Digits (optional), RecordingUrl (optional),
- * CallDuration (optional). Returns empty TwiML to end the call gracefully.
+ * CallDuration (optional). Returns TwiML: confirms the selection or ends the call.
  */
 export async function action({ request }: ActionFunctionArgs) {
   const text = await request.text();
@@ -13,6 +13,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const digits = params.get('Digits') ?? '';
   const recordingUrl = params.get('RecordingUrl') ?? undefined;
   const duration = params.get('CallDuration');
+
   if (callSid) {
     await recordCallDisposition({
       providerId: callSid,
@@ -21,7 +22,24 @@ export async function action({ request }: ActionFunctionArgs) {
       durationSec: duration ? Number(duration) : undefined,
     });
   }
-  return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', {
+
+  // Build response TwiML based on the digit pressed
+  let responseTwiml: string;
+  if (digits === '1') {
+    responseTwiml =
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Your order has been confirmed. Thank you!</Say><Hangup/></Response>';
+  } else if (digits === '2') {
+    responseTwiml =
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>Your order has been cancelled. Goodbye.</Say><Hangup/></Response>';
+  } else if (digits === '9') {
+    responseTwiml =
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Say>We will call you back soon. Thank you.</Say><Hangup/></Response>';
+  } else {
+    responseTwiml =
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>';
+  }
+
+  return new Response(responseTwiml, {
     status: 200,
     headers: { 'Content-Type': 'application/xml' },
   });
