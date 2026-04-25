@@ -1,0 +1,3 @@
+AssetSizeAppBlockJavaScript:
+  enabled: true
+  threshold: 30000
