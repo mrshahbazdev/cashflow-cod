@@ -22,6 +22,7 @@ type Settings = {
   currency?: string;
   timezone?: string;
   defaultLanguage?: string;
+  defaultFormSlug?: string;
   branding?: { accentColor?: string };
   otp?: {
     enabled?: boolean;
@@ -43,7 +44,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopByDomain(session.shop);
   if (!shop) throw new Response('Shop not found', { status: 404 });
-  return json({ shop });
+  const forms = await prisma.form.findMany({
+    where: { shopId: shop.id, isActive: true },
+    orderBy: [{ updatedAt: 'desc' }],
+    select: { slug: true, name: true },
+  });
+  return json({ shop, forms });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -60,6 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     currency: String(body.get('currency') ?? current.currency ?? 'USD'),
     timezone: String(body.get('timezone') ?? current.timezone ?? 'UTC'),
     defaultLanguage: String(body.get('defaultLanguage') ?? current.defaultLanguage ?? 'en'),
+    defaultFormSlug: String(body.get('defaultFormSlug') ?? current.defaultFormSlug ?? ''),
     branding: {
       accentColor: String(body.get('accentColor') ?? current.branding?.accentColor ?? '#008060'),
     },
@@ -94,12 +101,13 @@ function parseCsv(s: string): string[] {
 }
 
 export default function SettingsRoute() {
-  const { shop } = useLoaderData<typeof loader>();
+  const { shop, forms } = useLoaderData<typeof loader>();
   const s = (shop.settings as Settings) ?? {};
 
   const [currency, setCurrency] = useState(s.currency ?? 'USD');
   const [timezone, setTimezone] = useState(s.timezone ?? 'UTC');
   const [lang, setLang] = useState(s.defaultLanguage ?? 'en');
+  const [defaultFormSlug, setDefaultFormSlug] = useState(s.defaultFormSlug ?? '');
   const [accent, setAccent] = useState(s.branding?.accentColor ?? '#008060');
   const [otpEnabled, setOtpEnabled] = useState(s.otp?.enabled ?? false);
   const [otpChannel, setOtpChannel] = useState(s.otp?.channel ?? 'SMS');
@@ -162,6 +170,17 @@ export default function SettingsRoute() {
                   value={accent}
                   onChange={setAccent}
                   autoComplete="off"
+                />
+                <Select
+                  label="Default storefront form"
+                  name="defaultFormSlug"
+                  helpText="Theme blocks set to slug 'default' will open this form. If unset, the most recently updated active form is used."
+                  options={[
+                    { label: '(Auto: most recently updated active form)', value: '' },
+                    ...forms.map((f) => ({ label: `${f.name} (${f.slug})`, value: f.slug })),
+                  ]}
+                  value={defaultFormSlug}
+                  onChange={setDefaultFormSlug}
                 />
               </BlockStack>
             </Card>

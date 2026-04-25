@@ -26,9 +26,35 @@ export async function getForm(shopId: string, id: string) {
 }
 
 export async function getFormBySlug(shopDomain: string, slug: string) {
+  // "default" is a magic slug that resolves to the merchant's chosen
+  // default form (settings.defaultFormSlug) — or, if unset, the most
+  // recently updated active form. This lets theme blocks ship with a
+  // sensible default value that "just works" without asking the merchant
+  // to copy/paste a slug.
+  let resolvedSlug = slug;
+  if (slug === 'default') {
+    const shop = await prisma.shop.findUnique({
+      where: { domain: shopDomain },
+      select: { id: true, settings: true },
+    });
+    const settings = (shop?.settings as Record<string, unknown> | null) ?? {};
+    const configured =
+      typeof settings.defaultFormSlug === 'string' ? settings.defaultFormSlug : null;
+    if (configured) {
+      resolvedSlug = configured;
+    } else if (shop) {
+      const fallback = await prisma.form.findFirst({
+        where: { shopId: shop.id, isActive: true },
+        orderBy: { updatedAt: 'desc' },
+        select: { slug: true },
+      });
+      if (fallback) resolvedSlug = fallback.slug;
+    }
+  }
+
   const form = await prisma.form.findFirst({
     where: {
-      slug,
+      slug: resolvedSlug,
       shop: { domain: shopDomain },
       isActive: true,
     },
