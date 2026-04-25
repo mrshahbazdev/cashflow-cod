@@ -79,6 +79,7 @@
       language: root.dataset.language || 'auto',
       productId: root.dataset.productId || null,
       variantId: root.dataset.variantId || null,
+      productHandle: root.dataset.productHandle || null,
       apiOrigin: sanitizeApiOrigin(root.dataset.api),
     };
   }
@@ -758,6 +759,7 @@
         visitorId: visitorId(),
         productId: cfg.productId,
         variantId: cfg.variantId,
+        productHandle: cfg.productHandle,
         data: state.data,
         discountCode: state.discountApplied ? state.discountCode : null,
         cartSubtotal: cfg.unitPrice && cfg.quantity ? cfg.unitPrice * cfg.quantity : undefined,
@@ -1205,6 +1207,7 @@
         language: opts.language || 'auto',
         productId: opts.productId || null,
         variantId: opts.variantId || null,
+        productHandle: opts.productHandle || null,
         apiOrigin: apiOrigin,
       };
     }
@@ -1271,6 +1274,7 @@
             window.cashflowCod.open(slug, {
               productId: target.getAttribute('data-product-id') || null,
               variantId: target.getAttribute('data-variant-id') || null,
+              productHandle: target.getAttribute('data-product-handle') || null,
             });
             return;
           }
