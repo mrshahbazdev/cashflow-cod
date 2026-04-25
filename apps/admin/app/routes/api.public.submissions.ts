@@ -21,6 +21,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     abVariant?: string | null;
     productId?: string | null;
     variantId?: string | null;
+    tracking?: {
+      fbp?: string;
+      fbc?: string;
+      ttclid?: string;
+      ttp?: string;
+      scClickId?: string;
+      epik?: string;
+      sourceUrl?: string;
+    };
   };
   try {
     body = await request.json();
@@ -61,6 +70,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       abVariant: body.abVariant ?? null,
       productId: body.productId ?? null,
       variantId: body.variantId ?? null,
+      tracking: body.tracking ? { ...body.tracking, ip, userAgent } : { ip, userAgent },
     });
     return withCors(json(result));
   } catch (err) {

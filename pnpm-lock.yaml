@@ -32,6 +32,9 @@ importers:
       '@cashflow-cod/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@cashflow-cod/pixels':
+        specifier: workspace:*
+        version: link:../../packages/pixels
       '@cashflow-cod/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types

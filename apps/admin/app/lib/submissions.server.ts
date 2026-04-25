@@ -4,6 +4,7 @@ import prisma from '../db.server';
 import { createDraftOrderForSubmission } from './shopify-orders.server';
 import { scoreRisk, recordRiskEvaluation, type RiskFeatures } from './risk.server';
 import { markAbandonmentConverted } from './abandoned.server';
+import { contextFromOrder, firePixelsForShop, type ClientTrackingContext } from './pixels.server';
 
 type SubmitInput = {
   form: Form & { shop: Shop };
@@ -15,6 +16,7 @@ type SubmitInput = {
   abVariant: string | null;
   productId: string | null;
   variantId: string | null;
+  tracking?: ClientTrackingContext;
 };
 
 export type SubmitResult =
@@ -28,7 +30,18 @@ export type SubmitResult =
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
 export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> {
-  const { form, schema, data, visitorId, ip, userAgent, abVariant, productId, variantId } = input;
+  const {
+    form,
+    schema,
+    data,
+    visitorId,
+    ip,
+    userAgent,
+    abVariant,
+    productId,
+    variantId,
+    tracking,
+  } = input;
 
   const allFields: Field[] = schema.steps.flatMap((s) => s.fields);
   const visible = allFields.filter((f) => fieldIsVisible(f, data));
@@ -65,18 +78,22 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
   const features = await buildRiskFeatures(form.shopId, {
     phone: phoneNormalized,
     ip,
-    address: (allFields.find((f) => f.type === 'address')?.key
-      ? (data[allFields.find((f) => f.type === 'address')!.key] as string)
-      : null) ?? null,
-    city: (allFields.find((f) => f.type === 'city')?.key
-      ? (data[allFields.find((f) => f.type === 'city')!.key] as string)
-      : null) ?? null,
-    postalCode: (allFields.find((f) => f.type === 'postal_code')?.key
-      ? (data[allFields.find((f) => f.type === 'postal_code')!.key] as string)
-      : null) ?? null,
-    country: (allFields.find((f) => f.type === 'country')?.key
-      ? (data[allFields.find((f) => f.type === 'country')!.key] as string)
-      : null) ?? null,
+    address:
+      (allFields.find((f) => f.type === 'address')?.key
+        ? (data[allFields.find((f) => f.type === 'address')!.key] as string)
+        : null) ?? null,
+    city:
+      (allFields.find((f) => f.type === 'city')?.key
+        ? (data[allFields.find((f) => f.type === 'city')!.key] as string)
+        : null) ?? null,
+    postalCode:
+      (allFields.find((f) => f.type === 'postal_code')?.key
+        ? (data[allFields.find((f) => f.type === 'postal_code')!.key] as string)
+        : null) ?? null,
+    country:
+      (allFields.find((f) => f.type === 'country')?.key
+        ? (data[allFields.find((f) => f.type === 'country')!.key] as string)
+        : null) ?? null,
     userAgent,
   });
   const risk = await scoreRisk(features);
@@ -107,6 +124,36 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
   await markAbandonmentConverted(visitorId, form.id);
 
   if (requiresOtp) {
+    // Pre-purchase intent: still fire InitiateCheckout for ad attribution.
+    void firePixelsForShop({
+      shopId: form.shopId,
+      event: 'InitiateCheckout',
+      ctx: {
+        eventId: `init_${submission.id}`,
+        eventTime: Date.now(),
+        sourceUrl: tracking?.sourceUrl ?? `https://${form.shop.domain}/`,
+        userAgent: userAgent ?? undefined,
+        ip: ip ?? undefined,
+        email: email?.toLowerCase(),
+        phone: phoneNormalized ?? undefined,
+        externalId: visitorId,
+        fbp: tracking?.fbp,
+        fbc: tracking?.fbc,
+        ttclid: tracking?.ttclid,
+        ttp: tracking?.ttp,
+        scClickId: tracking?.scClickId,
+        epik: tracking?.epik,
+        currency: (form.shop.settings as Record<string, unknown> | null)?.currency as
+          | string
+          | undefined,
+        contents: variantId
+          ? [{ id: variantId, quantity: 1 }]
+          : productId
+            ? [{ id: productId, quantity: 1 }]
+            : undefined,
+      },
+    });
+
     return {
       ok: true,
       submissionId: submission.id,
@@ -141,6 +188,26 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
     where: { id: submission.id },
     data: { status: 'CONVERTED' },
   });
+
+  if (orderRow) {
+    void firePixelsForShop({
+      shopId: form.shopId,
+      event: 'Purchase',
+      ctx: contextFromOrder({
+        order: orderRow,
+        form,
+        submission,
+        client: {
+          ...(tracking ?? {}),
+          ip,
+          userAgent,
+          sourceUrl: tracking?.sourceUrl ?? `https://${form.shop.domain}/`,
+        },
+        productId,
+        variantId,
+      }),
+    });
+  }
 
   return {
     ok: true,
