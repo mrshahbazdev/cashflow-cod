@@ -6,14 +6,14 @@
 import type { ActionFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
 import prisma from '../db.server';
-import { preflight, withCors } from '../lib/cors.server';
+import { postOnlyLoader, preflight, withCors } from '../lib/cors.server';
 import {
   validatePostalCode,
   validateAddressViaProvider,
   type AddressInput,
 } from '../lib/address.server';
 
-export const loader = async () => withCors(json({ error: 'Method not allowed' }, { status: 405 }));
+export const loader = postOnlyLoader;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === 'OPTIONS') return preflight();

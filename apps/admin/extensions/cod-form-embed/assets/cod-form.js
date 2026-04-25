@@ -42,6 +42,31 @@
     }
   }
 
+  // Production URL of the Cashflow COD admin app. Used as the canonical
+  // fallback when a theme block was installed before the schema default
+  // was filled in (so root.dataset.api is empty or still the old
+  // placeholder string). This lets every block self-heal on next page
+  // load instead of asking the merchant to re-edit the theme settings.
+  var CASHFLOW_PROD_API_ORIGIN = 'https://cashflow-cod-production-2aff.up.railway.app';
+
+  function sanitizeApiOrigin(raw) {
+    var v = (raw || '').trim();
+    if (!v) return CASHFLOW_PROD_API_ORIGIN;
+    // Reject obvious placeholders that older versions of the schema
+    // shipped as the default value before PR #19 / #20.
+    if (/your-cashflow-cod-app\.example/i.test(v)) return CASHFLOW_PROD_API_ORIGIN;
+    if (/^https?:\/\/example\./i.test(v)) return CASHFLOW_PROD_API_ORIGIN;
+    if (/your-shop\.myshopify\.com/i.test(v)) return CASHFLOW_PROD_API_ORIGIN;
+    // Reject anything that isn't a valid absolute http(s) URL.
+    try {
+      var u = new URL(v);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return CASHFLOW_PROD_API_ORIGIN;
+      return v.replace(/\/+$/, '');
+    } catch (_e) {
+      return CASHFLOW_PROD_API_ORIGIN;
+    }
+  }
+
   function readConfigFromRoot(root) {
     if (!root) return null;
     return {
@@ -54,7 +79,7 @@
       language: root.dataset.language || 'auto',
       productId: root.dataset.productId || null,
       variantId: root.dataset.variantId || null,
-      apiOrigin: root.dataset.api || '',
+      apiOrigin: sanitizeApiOrigin(root.dataset.api),
     };
   }
 
@@ -69,8 +94,8 @@
 
   function defaultApiOrigin() {
     var anyRoot = listRoots()[0];
-    if (anyRoot && anyRoot.dataset.api) return anyRoot.dataset.api;
-    return '';
+    if (anyRoot && anyRoot.dataset.api) return sanitizeApiOrigin(anyRoot.dataset.api);
+    return CASHFLOW_PROD_API_ORIGIN;
   }
 
   function defaultShop() {

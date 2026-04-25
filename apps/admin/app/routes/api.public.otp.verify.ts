@@ -2,14 +2,14 @@ import type { ActionFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
 import { formSchema } from '@cashflow-cod/form-schema';
 import prisma from '../db.server';
-import { preflight, withCors } from '../lib/cors.server';
+import { postOnlyLoader, preflight, withCors } from '../lib/cors.server';
 import { verifyOtpForSubmission } from '../lib/otp.server';
 import { createDraftOrderForSubmission } from '../lib/shopify-orders.server';
 import { contextFromOrder, firePixelsForShop } from '../lib/pixels.server';
 import { dispatchSinkEvent } from '../lib/sinks';
 import { dispatchWebhook } from '../lib/webhooks.server';
 
-export const loader = async () => withCors(json({ error: 'Method not allowed' }, { status: 405 }));
+export const loader = postOnlyLoader;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === 'OPTIONS') return preflight();
