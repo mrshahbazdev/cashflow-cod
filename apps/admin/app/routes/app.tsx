@@ -41,6 +41,7 @@ export default function AppLayout() {
         <Link to="/app/i18n">Languages</Link>
         <Link to="/app/currency">Currency</Link>
         <Link to="/app/places">Address autocomplete</Link>
+        <Link to="/app/address">Address validation</Link>
         <Link to="/app/shipping">Shipping</Link>
         <Link to="/app/integrations">Integrations</Link>
         <Link to="/app/settings">Settings</Link>

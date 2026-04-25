@@ -370,6 +370,13 @@
     return postJson(cfg, '/api/public/submissions', payload);
   }
 
+  function validateAddress(cfg, address) {
+    return postJson(cfg, '/api/public/address/validate', {
+      shop: cfg.shop,
+      address: address,
+    });
+  }
+
   function validateDiscountCode(cfg, code, subtotal, productIds) {
     return postJson(cfg, '/api/public/discounts/validate', {
       shop: cfg.shop,

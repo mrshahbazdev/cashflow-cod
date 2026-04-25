@@ -47,5 +47,14 @@ export function generateOtp(length = 6): string {
 
 export { consoleAdapter } from './adapters/console.js';
 export { twilioAdapter } from './adapters/twilio.js';
+export { dialog360Adapter } from './adapters/dialog360.js';
 export { twilioVoiceAdapter } from './voice.js';
 export type { VoiceAdapter, PlaceCallRequest, PlaceCallResult } from './voice.js';
+
+import { consoleAdapter } from './adapters/console.js';
+import { twilioAdapter } from './adapters/twilio.js';
+import { dialog360Adapter } from './adapters/dialog360.js';
+
+messagingRegistry.register(consoleAdapter);
+messagingRegistry.register(twilioAdapter);
+messagingRegistry.register(dialog360Adapter);
