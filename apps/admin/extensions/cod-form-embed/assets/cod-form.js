@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  if (window.__cashflowCodLoaded) return;
+  window.__cashflowCodLoaded = true;
+
   function onReady(fn) {
     if (document.readyState !== 'loading') fn();
     else document.addEventListener('DOMContentLoaded', fn);
