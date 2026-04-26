@@ -27,6 +27,13 @@ type SubmitInput = {
   cartSubtotal?: number;
   quantity?: number;
   unitPrice?: number;
+  items?: Array<{
+    productId: string;
+    variantId: string;
+    quantity: number;
+    title?: string;
+    price?: number;
+  }>;
 };
 
 export type SubmitResult =
@@ -261,6 +268,7 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
       variantId,
       discount: discountSummary,
       quantityDiscount: qtyDiscount,
+      items: input.items,
     });
   } catch (err) {
     await prisma.submission.update({
@@ -312,8 +320,7 @@ export async function submitForOrder(input: SubmitInput): Promise<SubmitResult> 
         submissionId: submission.id,
         orderId: null,
         requiresOtp: false,
-        message:
-          'Order received. Our team will contact you shortly to confirm and dispatch.',
+        message: 'Order received. Our team will contact you shortly to confirm and dispatch.',
       };
     }
     return {

@@ -67,7 +67,19 @@
   data-btn-animation="{{ block.settings.button_animation }}"
   data-theme="{{ block.settings.theme_mode | default: 'auto' }}"
 >
-  {% if block.settings.trigger == 'button' and product %}
+  {% liquid
+    assign cf_show_trigger = false
+    if block.settings.trigger == 'button'
+      if block.settings.placement == 'product' and product
+        assign cf_show_trigger = true
+      elsif block.settings.placement == 'cart' and template.name == 'cart'
+        assign cf_show_trigger = true
+      elsif block.settings.placement == 'landing' or block.settings.placement == 'custom'
+        assign cf_show_trigger = true
+      endif
+    endif
+  %}
+  {% if cf_show_trigger %}
     <button
       type="button"
       class="cashflow-cod-cta-{{ block.id }} cashflow-cod-trigger"

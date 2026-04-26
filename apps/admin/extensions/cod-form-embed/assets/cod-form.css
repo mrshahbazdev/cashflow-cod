@@ -743,6 +743,26 @@
   margin-left: 2px;
 }
 
+/* ---------- Cart items (multi-product) ---------- */
+.cashflow-cod-cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cashflow-cod-cart-items .cashflow-cod-product-card {
+  margin-bottom: 0;
+}
+.cashflow-cod-cart-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 2px solid var(--cf-border-strong, #e2e8f0);
+  font-size: 1.05rem;
+  color: var(--cf-text);
+  margin-top: 4px;
+}
+
 /* ---------- Quantity selector ---------- */
 .cashflow-cod-qty {
   display: flex;

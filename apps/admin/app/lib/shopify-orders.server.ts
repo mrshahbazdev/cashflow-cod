@@ -27,6 +27,13 @@ type CreateDraftArgs = {
    * second `appliedDiscount` line so merchants see both reasons in Shopify.
    */
   quantityDiscount?: { description: string; amount: number } | null;
+  items?: Array<{
+    productId: string;
+    variantId: string;
+    quantity: number;
+    title?: string;
+    price?: number;
+  }>;
 };
 
 const DRAFT_ORDER_CREATE = `
@@ -100,20 +107,28 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
   const postalCode = (data[byType('postal_code')?.key ?? 'postal_code'] as string) || undefined;
   const country = (data[byType('country')?.key ?? 'country'] as string) || undefined;
 
-  const lineItems = variantId
-    ? [{ variantId: toGid('ProductVariant', variantId), quantity: 1 }]
-    : [
-        {
-          title: form.name || 'Cash on Delivery order',
-          quantity: 1,
-          originalUnitPriceWithCurrency: {
-            amount: '0.00',
-            currencyCode: shop.settings
-              ? ((shop.settings as Record<string, unknown>).currency as string) || 'USD'
-              : 'USD',
-          },
+  let lineItems;
+  if (args.items && args.items.length > 0) {
+    lineItems = args.items.map((item) => ({
+      variantId: toGid('ProductVariant', item.variantId),
+      quantity: item.quantity,
+    }));
+  } else if (variantId) {
+    lineItems = [{ variantId: toGid('ProductVariant', variantId), quantity: 1 }];
+  } else {
+    lineItems = [
+      {
+        title: form.name || 'Cash on Delivery order',
+        quantity: 1,
+        originalUnitPriceWithCurrency: {
+          amount: '0.00',
+          currencyCode: shop.settings
+            ? ((shop.settings as Record<string, unknown>).currency as string) || 'USD'
+            : 'USD',
         },
-      ];
+      },
+    ];
+  }
 
   const shippingAddress =
     addressLine1 || city
@@ -167,9 +182,7 @@ export async function createDraftOrderForSubmission(args: CreateDraftArgs) {
   if (name) merchantSummaryAttrs.push({ key: '_cashflow_customer', value: name });
   if (phone) merchantSummaryAttrs.push({ key: '_cashflow_phone', value: phone });
   if (email) merchantSummaryAttrs.push({ key: '_cashflow_email', value: email });
-  const summaryAddress = [addressLine1, city, postalCode, country]
-    .filter(Boolean)
-    .join(', ');
+  const summaryAddress = [addressLine1, city, postalCode, country].filter(Boolean).join(', ');
   if (summaryAddress)
     merchantSummaryAttrs.push({ key: '_cashflow_address', value: summaryAddress });
 
