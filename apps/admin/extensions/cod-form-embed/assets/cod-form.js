@@ -78,6 +78,7 @@
       trigger: root.dataset.trigger || 'button',
       accent: root.dataset.accent || '#008060',
       language: root.dataset.language || 'auto',
+      theme: root.dataset.theme || 'auto',
       productId: root.dataset.productId || null,
       variantId: root.dataset.variantId || null,
       productHandle: root.dataset.productHandle || null,
@@ -1271,8 +1272,17 @@
     render();
   }
 
+  function resolveThemeClass(cfg) {
+    var theme = (cfg && cfg.theme) || 'auto';
+    if (theme === 'dark') return 'cashflow-cod-dark';
+    if (theme === 'light') return '';
+    return '';
+  }
+
   function mountPopup(cfg, schema) {
-    var backdrop = el('div', { class: 'cashflow-cod-backdrop' });
+    var themeClass = resolveThemeClass(cfg);
+    var backdropClass = 'cashflow-cod-backdrop' + (themeClass ? ' ' + themeClass : '');
+    var backdrop = el('div', { class: backdropClass });
     var modal = el('div', { class: 'cashflow-cod-modal' });
     var close = el(
       'button',
@@ -1421,6 +1431,8 @@
         return null;
       }
       var unitPrice = opts.productPrice ? Number(opts.productPrice) || 0 : 0;
+      var anyRoot = listRoots()[0];
+      var rootTheme = anyRoot ? anyRoot.dataset.theme || 'auto' : 'auto';
       return {
         root: document.body,
         shop: shop,
@@ -1429,6 +1441,7 @@
         trigger: 'button',
         accent: opts.accent || '#008060',
         language: opts.language || 'auto',
+        theme: opts.theme || rootTheme,
         productId: opts.productId || null,
         variantId: opts.variantId || null,
         productHandle: opts.productHandle || null,
@@ -1535,8 +1548,145 @@
     });
   }
 
+  /* ---------- Collection / related products auto-injection ---------- */
+  var CF_COL_INJECTED = 'data-cf-auto-injected';
+
+  function extractProductHandle(card) {
+    var link = card.querySelector('a[href*="/products/"]');
+    if (!link) return null;
+    var m = link.href.match(/\/products\/([\w-]+)/);
+    return m ? m[1] : null;
+  }
+
+  function extractCardProductInfo(card) {
+    var info = { title: '', image: '', price: '' };
+    var titleEl = card.querySelector(
+      '.card__heading a, .card__heading, .product-card__title, .product__title, ' +
+        '[class*="product-title"], [class*="ProductTitle"], h3 a, h2 a, .card__content a',
+    );
+    if (titleEl) info.title = (titleEl.textContent || '').trim();
+    var imgEl = card.querySelector(
+      'img[src*="cdn.shopify"], img[srcset], .card__media img, .product-card__image img, img',
+    );
+    if (imgEl) info.image = imgEl.src || imgEl.getAttribute('srcset') || '';
+    if (info.image && info.image.indexOf(',') !== -1)
+      info.image = info.image.split(',')[0].trim().split(' ')[0];
+    var priceEl = card.querySelector(
+      '.price-item--regular, .price__regular .price-item, .product-price, ' +
+        '.money, [class*="price"], [class*="Price"]',
+    );
+    if (priceEl) {
+      var raw = (priceEl.textContent || '').replace(/[^\d.,]/g, '').trim();
+      if (raw) info.price = raw;
+    }
+    return info;
+  }
+
+  function findCollectionCards() {
+    var cards = [];
+    var selectors = [
+      '.product-card',
+      '.card-product',
+      '.grid-product',
+      '.product-item',
+      '.product-grid-item',
+      '.card-wrapper',
+      '.product-card-wrapper',
+      '.collection-product-card',
+      'li.grid__item',
+      '.grid__item .card',
+      '[class*="ProductItem"]',
+      '[class*="product-card"]',
+      '[class*="product_card"]',
+      '.card--product',
+      '.product',
+      '.related-products .card',
+      '.product-recommendations .card',
+      '[class*="related"] [class*="product"]',
+      '[class*="recommend"] [class*="product"]',
+      '.complementary-products .card',
+      'product-recommendations .card',
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var found = document.querySelectorAll(selectors[i]);
+      if (found.length > 1) {
+        for (var j = 0; j < found.length; j++) {
+          var c = found[j];
+          if (c.querySelector('a[href*="/products/"]') && !c.hasAttribute(CF_COL_INJECTED)) {
+            cards.push(c);
+          }
+        }
+        if (cards.length > 0) break;
+      }
+    }
+    if (cards.length === 0) {
+      var links = document.querySelectorAll('a[href*="/products/"]');
+      var seen = {};
+      for (var k = 0; k < links.length; k++) {
+        var parent = links[k].closest(
+          'li, .card, .grid__item, [class*="product"], [class*="recommend"]',
+        );
+        if (parent && !seen[parent] && !parent.hasAttribute(CF_COL_INJECTED)) {
+          seen[parent] = true;
+          cards.push(parent);
+        }
+      }
+    }
+    return cards;
+  }
+
+  function injectCollectionButtons() {
+    var anyRoot = listRoots()[0];
+    if (!anyRoot) return;
+    var cfg = readConfigFromRoot(anyRoot);
+    if (!cfg) return;
+    var slug = cfg.formSlug || 'default';
+    var cards = findCollectionCards();
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      var handle = extractProductHandle(card);
+      if (!handle) continue;
+      card.setAttribute(CF_COL_INJECTED, '1');
+      var pInfo = extractCardProductInfo(card);
+      var btn = el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-collection-btn',
+          'data-cashflow-cod-open': slug,
+          'data-product-handle': handle,
+          'data-product-title': pInfo.title || null,
+          'data-product-image': pInfo.image || null,
+          'data-product-price': pInfo.price || null,
+        },
+        [
+          el('span', { class: 'cashflow-cod-collection-btn-icon' }, ['\uD83D\uDCE6']),
+          el('span', {}, ['Cash on Delivery']),
+        ],
+      );
+      card.style.position = card.style.position || 'relative';
+      card.appendChild(btn);
+    }
+  }
+
+  function autoInjectCollection() {
+    var pageType = currentPageType();
+    if (pageType === 'product') {
+      setTimeout(function () {
+        injectCollectionButtons();
+      }, 800);
+    } else {
+      injectCollectionButtons();
+    }
+    var observer = new MutationObserver(function () {
+      injectCollectionButtons();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
   onReady(function () {
     boot();
     bindOpenAttributes();
+    autoInjectCollection();
   });
 })();
