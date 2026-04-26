@@ -102,12 +102,30 @@
     return match ? match[1] : null;
   }
 
-  function createButton(handle) {
+  function extractProductInfo(card) {
+    var info = { title: '', image: '', price: '' };
+    var titleEl = card.querySelector('.card__heading a, .card__heading, .product-card__title, .product__title, [class*="product-title"], [class*="ProductTitle"], h3 a, h2 a, .card__content a');
+    if (titleEl) info.title = (titleEl.textContent || '').trim();
+    var imgEl = card.querySelector('img[src*="cdn.shopify"], img[srcset], .card__media img, .product-card__image img, img');
+    if (imgEl) info.image = imgEl.src || imgEl.getAttribute('srcset') || '';
+    if (info.image && info.image.indexOf(',') !== -1) info.image = info.image.split(',')[0].trim().split(' ')[0];
+    var priceEl = card.querySelector('.price-item--regular, .price__regular .price-item, .product-price, .money, [class*="price"], [class*="Price"]');
+    if (priceEl) {
+      var raw = (priceEl.textContent || '').replace(/[^\d.,]/g, '').trim();
+      if (raw) info.price = raw;
+    }
+    return info;
+  }
+
+  function createButton(handle, productInfo) {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = BTN_CLASS;
     btn.setAttribute('data-cashflow-cod-open', SLUG);
     btn.setAttribute('data-product-handle', handle);
+    if (productInfo.title) btn.setAttribute('data-product-title', productInfo.title);
+    if (productInfo.image) btn.setAttribute('data-product-image', productInfo.image);
+    if (productInfo.price) btn.setAttribute('data-product-price', productInfo.price);
     btn.innerHTML = (ICON_SVG ? ICON_SVG : '') + '<span>' + LABEL + '</span>';
     return btn;
   }
@@ -130,6 +148,12 @@
       '[class*="product_card"]',
       '.card--product',
       '.product',
+      '.related-products .card',
+      '.product-recommendations .card',
+      '[class*="related"] [class*="product"]',
+      '[class*="recommend"] [class*="product"]',
+      '.complementary-products .card',
+      'product-recommendations .card',
     ];
     for (var i = 0; i < selectors.length; i++) {
       var found = document.querySelectorAll(selectors[i]);
@@ -147,7 +171,7 @@
       var links = document.querySelectorAll('a[href*="/products/"]');
       var seen = {};
       for (var k = 0; k < links.length; k++) {
-        var parent = links[k].closest('li, .card, .grid__item, [class*="product"]');
+        var parent = links[k].closest('li, .card, .grid__item, [class*="product"], [class*="recommend"]');
         if (parent && !seen[parent] && !parent.hasAttribute(INJECTED_ATTR)) {
           seen[parent] = true;
           cards.push(parent);
@@ -164,7 +188,8 @@
       var handle = extractProductId(card);
       if (!handle) continue;
       card.setAttribute(INJECTED_ATTR, '1');
-      var btn = createButton(handle);
+      var productInfo = extractProductInfo(card);
+      var btn = createButton(handle, productInfo);
       card.appendChild(btn);
     }
   }
