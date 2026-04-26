@@ -67,7 +67,7 @@
   data-btn-animation="{{ block.settings.button_animation }}"
   data-theme="{{ block.settings.theme_mode | default: 'auto' }}"
 >
-  {% if block.settings.trigger == 'button' %}
+  {% if block.settings.trigger == 'button' and product %}
     <button
       type="button"
       class="cashflow-cod-cta-{{ block.id }} cashflow-cod-trigger"

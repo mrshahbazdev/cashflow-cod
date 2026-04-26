@@ -1596,8 +1596,10 @@
   function cardAlreadyHasCodBtn(card) {
     if (card.hasAttribute(CF_COL_INJECTED)) return true;
     if (card.querySelector('[data-cashflow-cod-open]')) return true;
-    for (var i = 0; i < card.attributes.length; i++) {
-      if (card.attributes[i].name.indexOf('data-cf-injected') === 0) return true;
+    var ancestor = card.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      if (ancestor.hasAttribute(CF_COL_INJECTED)) return true;
+      ancestor = ancestor.parentElement;
     }
     return false;
   }
