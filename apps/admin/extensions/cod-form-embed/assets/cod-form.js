@@ -69,6 +69,7 @@
 
   function readConfigFromRoot(root) {
     if (!root) return null;
+    var rawPrice = root.dataset.productPrice || null;
     return {
       root: root,
       shop: root.dataset.shop,
@@ -82,8 +83,9 @@
       productHandle: root.dataset.productHandle || null,
       productTitle: root.dataset.productTitle || null,
       productImage: root.dataset.productImage || null,
-      productPrice: root.dataset.productPrice || null,
+      productPrice: rawPrice,
       productVariantTitle: root.dataset.productVariantTitle || null,
+      unitPrice: rawPrice ? Number(rawPrice) || 0 : 0,
       btnAnimation: root.dataset.btnAnimation || 'none',
       apiOrigin: sanitizeApiOrigin(root.dataset.api),
     };
@@ -360,6 +362,31 @@
       if (!r.ok) throw new Error('Form not available');
       return r.json();
     });
+  }
+
+  function fetchProductByHandle(handle) {
+    if (!handle) return Promise.resolve(null);
+    var url = '/products/' + encodeURIComponent(handle) + '.js';
+    return fetch(url, { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then(function (product) {
+        if (!product) return null;
+        var variant = product.variants && product.variants[0];
+        var price = variant ? (variant.price / 100).toString() : null;
+        return {
+          id: product.id ? String(product.id) : null,
+          title: product.title || null,
+          image: product.featured_image || (product.images && product.images[0]) || null,
+          price: price,
+          variantTitle: variant && variant.title !== 'Default Title' ? variant.title : null,
+        };
+      })
+      .catch(function () {
+        return null;
+      });
   }
 
   function postJson(cfg, path, payload) {
@@ -651,20 +678,40 @@
       ';}';
   }
 
-  function renderProductCard(cfg) {
+  function renderProductCard(cfg, state, schema) {
     if (!cfg.productTitle) return null;
+    var qty = (state && state.quantity) || cfg.quantity || 1;
+    var unitPrice = cfg.unitPrice || (cfg.productPrice ? Number(cfg.productPrice) : 0);
     var card = el('div', { class: 'cashflow-cod-product-card' });
     if (cfg.productImage) {
-      card.appendChild(el('img', { src: cfg.productImage, alt: cfg.productTitle, loading: 'lazy' }));
+      card.appendChild(
+        el('img', { src: cfg.productImage, alt: cfg.productTitle, loading: 'lazy' }),
+      );
     }
     var info = el('div', { class: 'cashflow-cod-product-card-info' });
     info.appendChild(el('p', { class: 'cashflow-cod-product-card-title' }, [cfg.productTitle]));
     if (cfg.productVariantTitle) {
-      info.appendChild(el('p', { class: 'cashflow-cod-product-card-variant' }, [cfg.productVariantTitle]));
+      info.appendChild(
+        el('p', { class: 'cashflow-cod-product-card-variant' }, [cfg.productVariantTitle]),
+      );
     }
-    if (cfg.productPrice) {
-      info.appendChild(el('p', { class: 'cashflow-cod-product-card-price' }, [formatMoney(cfg, cfg.productPrice)]));
+    var priceRow = el('div', { class: 'cashflow-cod-product-card-price-row' });
+    if (unitPrice) {
+      priceRow.appendChild(
+        el('span', { class: 'cashflow-cod-product-card-price' }, [formatMoney(cfg, unitPrice)]),
+      );
+      if (qty > 1) {
+        priceRow.appendChild(
+          el('span', { class: 'cashflow-cod-product-card-qty-badge' }, ['\u00D7 ' + qty]),
+        );
+        priceRow.appendChild(
+          el('span', { class: 'cashflow-cod-product-card-total' }, [
+            formatMoney(cfg, unitPrice * qty),
+          ]),
+        );
+      }
     }
+    info.appendChild(priceRow);
     card.appendChild(info);
     return card;
   }
@@ -672,18 +719,44 @@
   function renderQuantitySelector(cfg, state, render, schema) {
     if (schema && schema.hideQuantity) return null;
     var qty = el('div', { class: 'cashflow-cod-qty' });
-    qty.appendChild(el('span', { class: 'cashflow-cod-qty-label' }, [tr(cfg, 'quantity') || 'Quantity']));
+    qty.appendChild(
+      el('span', { class: 'cashflow-cod-qty-label' }, [tr(cfg, 'quantity') || 'Quantity']),
+    );
     var controls = el('div', { class: 'cashflow-cod-qty-controls' });
-    controls.appendChild(el('button', {
-      type: 'button', class: 'cashflow-cod-qty-btn',
-      disabled: (state.quantity || 1) <= 1 ? 'disabled' : null,
-      onclick: function () { state.quantity = Math.max(1, (state.quantity || 1) - 1); cfg.quantity = state.quantity; render(); },
-    }, ['\u2212']));
-    controls.appendChild(el('span', { class: 'cashflow-cod-qty-value' }, [String(state.quantity || 1)]));
-    controls.appendChild(el('button', {
-      type: 'button', class: 'cashflow-cod-qty-btn',
-      onclick: function () { state.quantity = (state.quantity || 1) + 1; cfg.quantity = state.quantity; render(); },
-    }, ['+']));
+    controls.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-qty-btn',
+          disabled: (state.quantity || 1) <= 1 ? 'disabled' : null,
+          onclick: function () {
+            state.quantity = Math.max(1, (state.quantity || 1) - 1);
+            cfg.quantity = state.quantity;
+            render();
+          },
+        },
+        ['\u2212'],
+      ),
+    );
+    controls.appendChild(
+      el('span', { class: 'cashflow-cod-qty-value' }, [String(state.quantity || 1)]),
+    );
+    controls.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-qty-btn',
+          onclick: function () {
+            state.quantity = (state.quantity || 1) + 1;
+            cfg.quantity = state.quantity;
+            render();
+          },
+        },
+        ['+'],
+      ),
+    );
     qty.appendChild(controls);
     return qty;
   }
@@ -691,13 +764,22 @@
   function renderSuccessScreen(cfg, state, schema) {
     var wrap = el('div', { class: 'cashflow-cod-success' });
     var icon = el('div', { class: 'cashflow-cod-success-icon' });
-    icon.appendChild(el('svg', { viewBox: '0 0 24 24' }, [
-      (function () { var p = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); p.setAttribute('points', '20 6 9 17 4 12'); return p; })(),
-    ]));
-    icon.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    icon.appendChild(
+      el('svg', { viewBox: '0 0 24 24' }, [
+        (function () {
+          var p = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+          p.setAttribute('points', '20 6 9 17 4 12');
+          return p;
+        })(),
+      ]),
+    );
+    icon.innerHTML =
+      '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     wrap.appendChild(icon);
     wrap.appendChild(el('h3', null, [schema.successTitle || 'Thank you!']));
-    wrap.appendChild(el('p', null, [state.message || schema.successMessage || 'Your order has been placed.']));
+    wrap.appendChild(
+      el('p', null, [state.message || schema.successMessage || 'Your order has been placed.']),
+    );
     if (schema.successCustomHtml) {
       var custom = el('div', { class: 'cashflow-cod-success-custom' });
       custom.innerHTML = sanitizeHtml(schema.successCustomHtml);
@@ -706,18 +788,71 @@
     var share = el('div', { class: 'cashflow-cod-share' });
     var shareUrl = encodeURIComponent(window.location.href);
     var shareText = encodeURIComponent(schema.successTitle || 'I just ordered via COD!');
-    share.appendChild(el('button', {
-      type: 'button', class: 'cashflow-cod-share-btn', title: 'WhatsApp',
-      onclick: function () { window.open('https://wa.me/?text=' + shareText + '%20' + shareUrl, '_blank'); },
-    }, [(function () { var d = document.createElement('span'); d.innerHTML = '<svg viewBox="0 0 24 24" fill="#25d366"><path d="M19.05 4.91A10.43 10.43 0 0 0 12 2a10.5 10.5 0 0 0-9.06 15.7L2 22l4.5-1.18A10.5 10.5 0 1 0 19.05 4.91z"/></svg>'; return d.firstChild; })()]));
-    share.appendChild(el('button', {
-      type: 'button', class: 'cashflow-cod-share-btn', title: 'Facebook',
-      onclick: function () { window.open('https://www.facebook.com/sharer/sharer.php?u=' + shareUrl, '_blank'); },
-    }, [(function () { var d = document.createElement('span'); d.innerHTML = '<svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>'; return d.firstChild; })()]));
-    share.appendChild(el('button', {
-      type: 'button', class: 'cashflow-cod-share-btn', title: 'Copy link',
-      onclick: function () { try { navigator.clipboard.writeText(window.location.href); } catch (e) {} },
-    }, [(function () { var d = document.createElement('span'); d.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; return d.firstChild; })()]));
+    share.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-share-btn',
+          title: 'WhatsApp',
+          onclick: function () {
+            window.open('https://wa.me/?text=' + shareText + '%20' + shareUrl, '_blank');
+          },
+        },
+        [
+          (function () {
+            var d = document.createElement('span');
+            d.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="#25d366"><path d="M19.05 4.91A10.43 10.43 0 0 0 12 2a10.5 10.5 0 0 0-9.06 15.7L2 22l4.5-1.18A10.5 10.5 0 1 0 19.05 4.91z"/></svg>';
+            return d.firstChild;
+          })(),
+        ],
+      ),
+    );
+    share.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-share-btn',
+          title: 'Facebook',
+          onclick: function () {
+            window.open('https://www.facebook.com/sharer/sharer.php?u=' + shareUrl, '_blank');
+          },
+        },
+        [
+          (function () {
+            var d = document.createElement('span');
+            d.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>';
+            return d.firstChild;
+          })(),
+        ],
+      ),
+    );
+    share.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-share-btn',
+          title: 'Copy link',
+          onclick: function () {
+            try {
+              navigator.clipboard.writeText(window.location.href);
+            } catch (e) {}
+          },
+        },
+        [
+          (function () {
+            var d = document.createElement('span');
+            d.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+            return d.firstChild;
+          })(),
+        ],
+      ),
+    );
     wrap.appendChild(share);
     return wrap;
   }
@@ -1026,7 +1161,7 @@
         w.appendChild(stepper);
       }
 
-      var productCard = renderProductCard(cfg);
+      var productCard = renderProductCard(cfg, state, schema);
       if (productCard) w.appendChild(productCard);
 
       if (state.status === 'success') {
@@ -1285,6 +1420,7 @@
           console.warn('[Cashflow COD] cashflowCod.open(): missing apiOrigin or shop.');
         return null;
       }
+      var unitPrice = opts.productPrice ? Number(opts.productPrice) || 0 : 0;
       return {
         root: document.body,
         shop: shop,
@@ -1296,6 +1432,11 @@
         productId: opts.productId || null,
         variantId: opts.variantId || null,
         productHandle: opts.productHandle || null,
+        productTitle: opts.productTitle || null,
+        productImage: opts.productImage || null,
+        productPrice: opts.productPrice || null,
+        productVariantTitle: opts.productVariantTitle || null,
+        unitPrice: unitPrice,
         apiOrigin: apiOrigin,
       };
     }
@@ -1306,18 +1447,36 @@
       );
       if (!cfg) return Promise.reject(new Error('Missing apiOrigin/shop'));
       styleAccent(cfg.accent);
-      return fetchSchema(cfg).then(function (res) {
-        var formData = res && res.form;
-        var schema = formData && formData.schema;
-        if (!schema) throw new Error('No form schema returned');
-        if (formData.i18n) cfg.i18n = formData.i18n;
-        if (formData.currency) cfg.currency = formData.currency;
-        if (formData.places) cfg.places = formData.places;
-        cfg.activeLanguage = resolveLanguage(cfg);
-        cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
-        if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
-        mountPopup(cfg, schema);
-      });
+
+      var needsFetch = cfg.productHandle && !cfg.productTitle;
+      var productPromise = needsFetch
+        ? fetchProductByHandle(cfg.productHandle)
+        : Promise.resolve(null);
+
+      return productPromise
+        .then(function (productData) {
+          if (productData) {
+            cfg.productTitle = cfg.productTitle || productData.title;
+            cfg.productImage = cfg.productImage || productData.image;
+            cfg.productPrice = cfg.productPrice || productData.price;
+            cfg.productId = cfg.productId || productData.id;
+            cfg.productVariantTitle = cfg.productVariantTitle || productData.variantTitle;
+            if (productData.price) cfg.unitPrice = Number(productData.price) || 0;
+          }
+          return fetchSchema(cfg);
+        })
+        .then(function (res) {
+          var formData = res && res.form;
+          var schema = formData && formData.schema;
+          if (!schema) throw new Error('No form schema returned');
+          if (formData.i18n) cfg.i18n = formData.i18n;
+          if (formData.currency) cfg.currency = formData.currency;
+          if (formData.places) cfg.places = formData.places;
+          cfg.activeLanguage = resolveLanguage(cfg);
+          cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+          if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+          mountPopup(cfg, schema);
+        });
     }
 
     function mountInlineApi(slug, target, opts) {
@@ -1363,6 +1522,10 @@
               productId: target.getAttribute('data-product-id') || null,
               variantId: target.getAttribute('data-variant-id') || null,
               productHandle: target.getAttribute('data-product-handle') || null,
+              productTitle: target.getAttribute('data-product-title') || null,
+              productImage: target.getAttribute('data-product-image') || null,
+              productPrice: target.getAttribute('data-product-price') || null,
+              productVariantTitle: target.getAttribute('data-product-variant-title') || null,
             });
             return;
           }
