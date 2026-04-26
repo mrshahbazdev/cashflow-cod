@@ -1531,15 +1531,21 @@
           var slug = target.getAttribute('data-cashflow-cod-open') || 'default';
           if (window.cashflowCod && window.cashflowCod.open) {
             ev.preventDefault();
-            window.cashflowCod.open(slug, {
-              productId: target.getAttribute('data-product-id') || null,
-              variantId: target.getAttribute('data-variant-id') || null,
-              productHandle: target.getAttribute('data-product-handle') || null,
-              productTitle: target.getAttribute('data-product-title') || null,
-              productImage: target.getAttribute('data-product-image') || null,
-              productPrice: target.getAttribute('data-product-price') || null,
-              productVariantTitle: target.getAttribute('data-product-variant-title') || null,
-            });
+            ev.stopPropagation();
+            window.cashflowCod
+              .open(slug, {
+                productId: target.getAttribute('data-product-id') || null,
+                variantId: target.getAttribute('data-variant-id') || null,
+                productHandle: target.getAttribute('data-product-handle') || null,
+                productTitle: target.getAttribute('data-product-title') || null,
+                productImage: target.getAttribute('data-product-image') || null,
+                productPrice: target.getAttribute('data-product-price') || null,
+                productVariantTitle: target.getAttribute('data-product-variant-title') || null,
+              })
+              .catch(function (err) {
+                if (window.console && console.error)
+                  console.error('[Cashflow COD] Failed to open form:', err);
+              });
             return;
           }
         }
@@ -1582,6 +1588,15 @@
     return info;
   }
 
+  function cardAlreadyHasCodBtn(card) {
+    if (card.hasAttribute(CF_COL_INJECTED)) return true;
+    if (card.querySelector('[data-cashflow-cod-open]')) return true;
+    for (var i = 0; i < card.attributes.length; i++) {
+      if (card.attributes[i].name.indexOf('data-cf-injected') === 0) return true;
+    }
+    return false;
+  }
+
   function findCollectionCards() {
     var cards = [];
     var selectors = [
@@ -1612,7 +1627,7 @@
       if (found.length > 1) {
         for (var j = 0; j < found.length; j++) {
           var c = found[j];
-          if (c.querySelector('a[href*="/products/"]') && !c.hasAttribute(CF_COL_INJECTED)) {
+          if (c.querySelector('a[href*="/products/"]') && !cardAlreadyHasCodBtn(c)) {
             cards.push(c);
           }
         }
@@ -1626,7 +1641,7 @@
         var parent = links[k].closest(
           'li, .card, .grid__item, [class*="product"], [class*="recommend"]',
         );
-        if (parent && !seen[parent] && !parent.hasAttribute(CF_COL_INJECTED)) {
+        if (parent && !seen[parent] && !cardAlreadyHasCodBtn(parent)) {
           seen[parent] = true;
           cards.push(parent);
         }
@@ -1678,8 +1693,12 @@
     } else {
       injectCollectionButtons();
     }
+    var debounceTimer = null;
     var observer = new MutationObserver(function () {
-      injectCollectionButtons();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        injectCollectionButtons();
+      }, 300);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
