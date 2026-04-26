@@ -74,136 +74,29 @@
 {%- endcapture -%}
 
 <div
-  class="cashflow-cod-root"
+  class="cashflow-cod-root cashflow-cod-collection-cfg"
   data-cashflow-cod-root
+  data-cashflow-collection-cfg
   data-shop="{{ shop.permanent_domain }}"
   data-form-slug="{{ cf_slug }}"
   data-placement="custom"
   data-trigger="inline"
   data-accent="{{ cf_accent }}"
+  data-text-color="{{ cf_text_color }}"
+  data-btn-label="{{ cf_label }}"
+  data-btn-icon="{{ cf_icon }}"
+  data-btn-radius="{{ cf_radius }}"
+  data-btn-font-size="{{ cf_font_size }}"
+  data-btn-full-width="{{ cf_full_width }}"
   data-language="{{ block.settings.language }}"
   data-api="{{ cf_api }}"
   style="display:none"
 ></div>
 
-<script>
-(function() {
-  var BLOCK_ID = {{ block.id | json }};
-  var SLUG = {{ cf_slug | json }};
-  var LABEL = {{ cf_label | json }};
-  var ICON_SVG = {{ cf_icon_svg | strip | json }};
-  var BTN_CLASS = 'cashflow-cod-collection-btn-' + BLOCK_ID;
-  var INJECTED_ATTR = 'data-cf-injected-' + BLOCK_ID;
-
-  function extractProductId(card) {
-    var link = card.querySelector('a[href*="/products/"]');
-    if (!link) return null;
-    var match = link.href.match(/\/products\/([\w-]+)/);
-    return match ? match[1] : null;
-  }
-
-  function extractProductInfo(card) {
-    var info = { title: '', image: '', price: '' };
-    var titleEl = card.querySelector('.card__heading a, .card__heading, .product-card__title, .product__title, [class*="product-title"], [class*="ProductTitle"], h3 a, h2 a, .card__content a');
-    if (titleEl) info.title = (titleEl.textContent || '').trim();
-    var imgEl = card.querySelector('img[src*="cdn.shopify"], img[srcset], .card__media img, .product-card__image img, img');
-    if (imgEl) info.image = imgEl.src || imgEl.getAttribute('srcset') || '';
-    if (info.image && info.image.indexOf(',') !== -1) info.image = info.image.split(',')[0].trim().split(' ')[0];
-    var priceEl = card.querySelector('.price-item--regular, .price__regular .price-item, .product-price, .money, [class*="price"], [class*="Price"]');
-    if (priceEl) {
-      var raw = (priceEl.textContent || '').replace(/[^\d.,]/g, '').trim();
-      if (raw) info.price = raw;
-    }
-    return info;
-  }
-
-  function createButton(handle, productInfo) {
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = BTN_CLASS;
-    btn.setAttribute('data-cashflow-cod-open', SLUG);
-    btn.setAttribute('data-product-handle', handle);
-    if (productInfo.title) btn.setAttribute('data-product-title', productInfo.title);
-    if (productInfo.image) btn.setAttribute('data-product-image', productInfo.image);
-    if (productInfo.price) btn.setAttribute('data-product-price', productInfo.price);
-    btn.innerHTML = (ICON_SVG ? ICON_SVG : '') + '<span>' + LABEL + '</span>';
-    return btn;
-  }
-
-  function findProductCards() {
-    var cards = [];
-    var selectors = [
-      '.product-card',
-      '.card-product',
-      '.grid-product',
-      '.product-item',
-      '.product-grid-item',
-      '.card-wrapper',
-      '.product-card-wrapper',
-      '.collection-product-card',
-      'li.grid__item',
-      '.grid__item .card',
-      '[class*="ProductItem"]',
-      '[class*="product-card"]',
-      '[class*="product_card"]',
-      '.card--product',
-      '.product',
-      '.related-products .card',
-      '.product-recommendations .card',
-      '[class*="related"] [class*="product"]',
-      '[class*="recommend"] [class*="product"]',
-      '.complementary-products .card',
-      'product-recommendations .card',
-    ];
-    for (var i = 0; i < selectors.length; i++) {
-      var found = document.querySelectorAll(selectors[i]);
-      if (found.length > 1) {
-        for (var j = 0; j < found.length; j++) {
-          var el = found[j];
-          if (el.querySelector('a[href*="/products/"]') && !el.hasAttribute(INJECTED_ATTR)) {
-            cards.push(el);
-          }
-        }
-        if (cards.length > 0) break;
-      }
-    }
-    if (cards.length === 0) {
-      var links = document.querySelectorAll('a[href*="/products/"]');
-      var seen = {};
-      for (var k = 0; k < links.length; k++) {
-        var parent = links[k].closest('li, .card, .grid__item, [class*="product"], [class*="recommend"]');
-        if (parent && !seen[parent] && !parent.hasAttribute(INJECTED_ATTR)) {
-          seen[parent] = true;
-          cards.push(parent);
-        }
-      }
-    }
-    return cards;
-  }
-
-  function inject() {
-    var cards = findProductCards();
-    for (var i = 0; i < cards.length; i++) {
-      var card = cards[i];
-      var handle = extractProductId(card);
-      if (!handle) continue;
-      card.setAttribute(INJECTED_ATTR, '1');
-      var productInfo = extractProductInfo(card);
-      var btn = createButton(handle, productInfo);
-      card.appendChild(btn);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inject);
-  } else {
-    inject();
-  }
-
-  var observer = new MutationObserver(function() { inject(); });
-  observer.observe(document.body, { childList: true, subtree: true });
-})();
-</script>
+{% comment %}
+  Button injection is handled entirely by cod-form.js autoInjectCollection().
+  This block only provides configuration via data attributes above.
+{% endcomment %}
 
 {{ 'cod-form.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'cod-form.js' | asset_url }}" defer="defer"></script>

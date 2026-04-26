@@ -1455,6 +1455,8 @@
     }
 
     function open(slug, opts) {
+      if (document.querySelector('.cashflow-cod-backdrop')) return Promise.resolve();
+
       var cfg = ephemeralCfg(
         Object.assign({}, opts || {}, { slug: slug || (opts && opts.slug) || 'default' }),
       );
@@ -1650,12 +1652,29 @@
     return cards;
   }
 
+  function getCollectionBtnConfig() {
+    var cfgEl = document.querySelector('[data-cashflow-collection-cfg]');
+    var anyRoot = cfgEl || listRoots()[0];
+    if (!anyRoot) return null;
+    var ds = anyRoot.dataset || {};
+    return {
+      slug: ds.formSlug || 'default',
+      accent: ds.accent || '#008060',
+      textColor: ds.textColor || '#ffffff',
+      label: ds.btnLabel || 'Cash on Delivery',
+      icon: ds.btnIcon || 'cart',
+      radius: ds.btnRadius || '8',
+      fontSize: ds.btnFontSize || '14',
+      fullWidth: ds.btnFullWidth !== 'false',
+    };
+  }
+
+  var COD_CART_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;flex:0 0 auto"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>';
+
   function injectCollectionButtons() {
-    var anyRoot = listRoots()[0];
-    if (!anyRoot) return;
-    var cfg = readConfigFromRoot(anyRoot);
-    if (!cfg) return;
-    var slug = cfg.formSlug || 'default';
+    var btnCfg = getCollectionBtnConfig();
+    if (!btnCfg) return;
     var cards = findCollectionCards();
     for (var i = 0; i < cards.length; i++) {
       var card = cards[i];
@@ -1663,22 +1682,27 @@
       if (!handle) continue;
       card.setAttribute(CF_COL_INJECTED, '1');
       var pInfo = extractCardProductInfo(card);
-      var btn = el(
-        'button',
-        {
-          type: 'button',
-          class: 'cashflow-cod-collection-btn',
-          'data-cashflow-cod-open': slug,
-          'data-product-handle': handle,
-          'data-product-title': pInfo.title || null,
-          'data-product-image': pInfo.image || null,
-          'data-product-price': pInfo.price || null,
-        },
-        [
-          el('span', { class: 'cashflow-cod-collection-btn-icon' }, ['\uD83D\uDCE6']),
-          el('span', {}, ['Cash on Delivery']),
-        ],
-      );
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cashflow-cod-collection-btn';
+      btn.setAttribute('data-cashflow-cod-open', btnCfg.slug);
+      btn.setAttribute('data-product-handle', handle);
+      if (pInfo.title) btn.setAttribute('data-product-title', pInfo.title);
+      if (pInfo.image) btn.setAttribute('data-product-image', pInfo.image);
+      if (pInfo.price) btn.setAttribute('data-product-price', pInfo.price);
+      btn.style.cssText =
+        'background:' +
+        btnCfg.accent +
+        ';color:' +
+        btnCfg.textColor +
+        ';border-radius:' +
+        btnCfg.radius +
+        'px;font-size:' +
+        btnCfg.fontSize +
+        'px;' +
+        (btnCfg.fullWidth ? 'width:100%;' : 'display:inline-flex;');
+      btn.innerHTML =
+        (btnCfg.icon !== 'none' ? COD_CART_SVG : '') + '<span>' + btnCfg.label + '</span>';
       card.style.position = card.style.position || 'relative';
       card.appendChild(btn);
     }
