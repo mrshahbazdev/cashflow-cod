@@ -1,7 +1,8 @@
+import { useEffect, useRef } from 'react';
 import type { LoaderFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
-import { Link as RemixLink, useLoaderData } from '@remix-run/react';
-import { BlockStack, Button, Card, InlineStack, Layout, Page, Text } from '@shopify/polaris';
+import { useLoaderData } from '@remix-run/react';
+import { BlockStack, Card, InlineStack, Layout, Page, Text } from '@shopify/polaris';
 import { authenticate } from '../shopify.server';
 import { getShopByDomain } from '../lib/install.server';
 import { getForm } from '../lib/forms.server';
@@ -119,29 +120,44 @@ function buildPreviewHtml(schema: FormSchema): string {
   const legal = schema.legalText
     ? `<p class="cashflow-cod-legal">${escapeHtml(schema.legalText)}</p>`
     : '';
-  return `
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  .cashflow-cod-preview-wrap { max-width: 520px; margin: 0 auto; padding: 16px; font-family: system-ui, -apple-system, sans-serif; }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: #f6f6f7; }
+  .cashflow-cod-preview-wrap { max-width: 520px; margin: 0 auto; padding: 16px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #202223; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   .cashflow-cod-widget { background: #fff; padding: 24px; border-radius: 12px; border: 1px solid #e1e3e5; }
-  .cashflow-cod-title { margin: 0 0 4px; font-size: 20px; }
-  .cashflow-cod-subtitle { margin: 0 0 16px; color: #6d7175; }
+  .cashflow-cod-title { margin: 0 0 4px; font-size: 20px; font-weight: 700; color: #202223; }
+  .cashflow-cod-subtitle { margin: 0 0 16px; color: #6d7175; font-size: 14px; }
   .cashflow-cod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .cashflow-cod-col-full { grid-column: 1 / -1; }
   .cashflow-cod-col-half { grid-column: span 1; }
   .cashflow-cod-col-third { grid-column: span 1; }
   .cashflow-cod-field { display: flex; flex-direction: column; }
-  .cashflow-cod-label { font-size: 13px; margin-bottom: 4px; color: #202223; }
+  .cashflow-cod-label { font-size: 13px; margin-bottom: 4px; color: #202223; font-weight: 500; }
   .cashflow-cod-required { color: #d72c0d; }
+  .cashflow-cod-checkbox { display: inline-flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 14px; }
+  .cashflow-cod-divider { border: none; border-top: 1px solid #e1e3e5; margin: 8px 0; }
+  .cashflow-cod-html { font-size: 14px; color: #6d7175; }
   .cashflow-cod-field input, .cashflow-cod-field select, .cashflow-cod-field textarea {
-    padding: 10px 12px; border: 1px solid #c9cccf; border-radius: 8px; font: inherit;
+    padding: 10px 12px; border: 1px solid #c9cccf; border-radius: 8px; font: inherit; font-size: 14px; color: #202223; background: #fff;
+  }
+  .cashflow-cod-field input:focus, .cashflow-cod-field select:focus, .cashflow-cod-field textarea:focus {
+    outline: none; border-color: #008060; box-shadow: 0 0 0 2px rgba(0, 128, 96, 0.15);
   }
   .cashflow-cod-submit {
     margin-top: 16px; width: 100%; padding: 12px; border: 0; border-radius: 8px;
-    background: #008060; color: #fff; font-weight: 600; cursor: pointer;
+    background: #008060; color: #fff; font-weight: 600; font-size: 15px; cursor: pointer;
   }
-  .cashflow-cod-legal { color: #6d7175; font-size: 12px; margin-top: 12px; }
+  .cashflow-cod-submit:hover { filter: brightness(1.06); }
+  .cashflow-cod-legal { color: #6d7175; font-size: 12px; margin-top: 12px; line-height: 1.5; }
   ${scopedCss}
 </style>
+</head>
+<body>
 <div class="cashflow-cod-preview-wrap">
   <div class="cashflow-cod-widget">
     ${header}
@@ -152,21 +168,27 @@ function buildPreviewHtml(schema: FormSchema): string {
     ${legal}
     ${footer}
   </div>
-</div>`;
+</div>
+</body>
+</html>`;
 }
 
 export default function FormPreviewRoute() {
   const data = useLoaderData<typeof loader>();
   const html = data.schema ? buildPreviewHtml(data.schema) : '';
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (iframeRef.current && html) {
+      iframeRef.current.srcdoc = html;
+    }
+  }, [html]);
+
   return (
     <Page
       title={`Preview: ${data.name}`}
       backAction={{ content: 'Back to form', url: `/app/forms/${data.id}` }}
-      primaryAction={
-        <RemixLink to={`/app/forms/${data.id}`}>
-          <Button>Edit form</Button>
-        </RemixLink>
-      }
+      primaryAction={{ content: 'Edit form', url: `/app/forms/${data.id}` }}
     >
       <Layout>
         <Layout.Section>
@@ -179,6 +201,7 @@ export default function FormPreviewRoute() {
               </InlineStack>
               {data.schema ? (
                 <iframe
+                  ref={iframeRef}
                   title="Form preview"
                   style={{
                     width: '100%',
@@ -187,7 +210,6 @@ export default function FormPreviewRoute() {
                     borderRadius: 12,
                     background: '#f6f6f7',
                   }}
-                  srcDoc={html}
                 />
               ) : (
                 <Text as="p" tone="critical">
