@@ -65,6 +65,7 @@
   data-product-price="{% if product %}{{ product.selected_or_first_available_variant.price | money_without_currency }}{% endif %}"
   data-product-variant-title="{% if product and product.selected_or_first_available_variant.title != 'Default Title' %}{{ product.selected_or_first_available_variant.title | escape }}{% endif %}"
   data-btn-animation="{{ block.settings.button_animation }}"
+  data-theme="{{ block.settings.theme_mode | default: 'auto' }}"
 >
   {% if block.settings.trigger == 'button' %}
     <button
@@ -214,6 +215,22 @@
       ],
       "default": "none",
       "info": "Attention-grabbing animation for the COD button."
+    },
+    {
+      "type": "header",
+      "content": "Theme"
+    },
+    {
+      "type": "select",
+      "id": "theme_mode",
+      "label": "Dark / Light mode",
+      "options": [
+        { "value": "auto", "label": "Auto (follow system)" },
+        { "value": "light", "label": "Light" },
+        { "value": "dark", "label": "Dark" }
+      ],
+      "default": "auto",
+      "info": "Choose whether the form popup uses light mode, dark mode, or follows the visitor's system preference."
     },
     {
       "type": "header",
