@@ -35,6 +35,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     cartSubtotal?: number;
     quantity?: number;
     unitPrice?: number;
+    items?: Array<{
+      productId: string;
+      variantId: string;
+      quantity: number;
+      title?: string;
+      price?: number;
+    }>;
   };
   try {
     body = await request.json();
@@ -81,6 +88,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       cartSubtotal: body.cartSubtotal,
       quantity: body.quantity,
       unitPrice: body.unitPrice,
+      items: body.items,
     });
     return withCors(json(result));
   } catch (err) {

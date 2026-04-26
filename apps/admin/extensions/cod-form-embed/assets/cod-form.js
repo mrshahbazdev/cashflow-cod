@@ -449,6 +449,25 @@
     };
   }
 
+  function fetchCart() {
+    return new Promise(function (resolve) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/cart.js');
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.onload = function () {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (e) {
+          resolve(null);
+        }
+      };
+      xhr.onerror = function () {
+        resolve(null);
+      };
+      xhr.send();
+    });
+  }
+
   function postSubmission(cfg, payload) {
     payload.tracking = trackingContext();
     return postJson(cfg, '/api/public/submissions', payload);
@@ -683,6 +702,9 @@
   }
 
   function renderProductCard(cfg, state, schema) {
+    if (cfg.cartItems && cfg.cartItems.length > 0) {
+      return renderCartItems(cfg);
+    }
     if (!cfg.productTitle) return null;
     var qty = (state && state.quantity) || cfg.quantity || 1;
     var unitPrice = cfg.unitPrice || (cfg.productPrice ? Number(cfg.productPrice) : 0);
@@ -720,7 +742,50 @@
     return card;
   }
 
+  function renderCartItems(cfg) {
+    var wrap = el('div', { class: 'cashflow-cod-cart-items' });
+    var total = 0;
+    for (var i = 0; i < cfg.cartItems.length; i++) {
+      var item = cfg.cartItems[i];
+      var row = el('div', { class: 'cashflow-cod-product-card' });
+      if (item.image) {
+        row.appendChild(el('img', { src: item.image, alt: item.title, loading: 'lazy' }));
+      }
+      var info = el('div', { class: 'cashflow-cod-product-card-info' });
+      info.appendChild(el('p', { class: 'cashflow-cod-product-card-title' }, [item.title]));
+      if (item.variant_title) {
+        info.appendChild(
+          el('p', { class: 'cashflow-cod-product-card-variant' }, [item.variant_title]),
+        );
+      }
+      var priceRow = el('div', { class: 'cashflow-cod-product-card-price-row' });
+      var itemPrice = item.price / 100;
+      var lineTotal = (item.line_price || item.price * item.quantity) / 100;
+      priceRow.appendChild(
+        el('span', { class: 'cashflow-cod-product-card-price' }, [formatMoney(cfg, itemPrice)]),
+      );
+      if (item.quantity > 1) {
+        priceRow.appendChild(
+          el('span', { class: 'cashflow-cod-product-card-qty-badge' }, ['\u00D7 ' + item.quantity]),
+        );
+      }
+      priceRow.appendChild(
+        el('span', { class: 'cashflow-cod-product-card-total' }, [formatMoney(cfg, lineTotal)]),
+      );
+      total += lineTotal;
+      info.appendChild(priceRow);
+      row.appendChild(info);
+      wrap.appendChild(row);
+    }
+    var totalRow = el('div', { class: 'cashflow-cod-cart-total' });
+    totalRow.appendChild(el('span', {}, ['Total']));
+    totalRow.appendChild(el('strong', {}, [formatMoney(cfg, total)]));
+    wrap.appendChild(totalRow);
+    return wrap;
+  }
+
   function renderQuantitySelector(cfg, state, render, schema) {
+    if (cfg.cartItems && cfg.cartItems.length > 0) return null;
     if (schema && schema.hideQuantity) return null;
     var qty = el('div', { class: 'cashflow-cod-qty' });
     qty.appendChild(
@@ -971,7 +1036,7 @@
       state.status = 'submitting';
       state.message = '';
       render();
-      postSubmission(cfg, {
+      var payload = {
         shop: cfg.shop,
         formSlug: cfg.formSlug,
         visitorId: visitorId(),
@@ -984,7 +1049,22 @@
         cartSubtotal: cfg.unitPrice && cfg.quantity ? cfg.unitPrice * cfg.quantity : undefined,
         quantity: state.quantity || 1,
         unitPrice: cfg.unitPrice,
-      })
+      };
+      if (cfg.cartItems && cfg.cartItems.length > 0) {
+        payload.items = [];
+        for (var ci = 0; ci < cfg.cartItems.length; ci++) {
+          var cItem = cfg.cartItems[ci];
+          payload.items.push({
+            productId: String(cItem.product_id),
+            variantId: String(cItem.variant_id),
+            quantity: cItem.quantity,
+            title: cItem.title,
+            price: cItem.price / 100,
+          });
+        }
+        payload.cartSubtotal = cfg.cartTotal;
+      }
+      postSubmission(cfg, payload)
         .then(function (res) {
           if (res.status >= 200 && res.status < 300 && res.body && res.body.ok) {
             state.submissionId = res.body.submissionId || null;
@@ -1404,7 +1484,17 @@
               triggerBtn.classList.add('cashflow-cod-anim-' + cfg.btnAnimation);
             }
             triggerBtn.addEventListener('click', function () {
-              mountPopup(cfg, schema);
+              if (currentPageType() === 'cart') {
+                fetchCart().then(function (cart) {
+                  if (cart && cart.items && cart.items.length > 0) {
+                    cfg.cartItems = cart.items;
+                    cfg.cartTotal = cart.total_price / 100;
+                  }
+                  mountPopup(cfg, schema);
+                });
+              } else {
+                mountPopup(cfg, schema);
+              }
             });
           }
         }
