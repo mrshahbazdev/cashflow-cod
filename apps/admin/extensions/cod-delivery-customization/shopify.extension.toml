@@ -1,0 +1,15 @@
+api_version = "2024-10"
+
+[[extensions]]
+name = "Cashflow COD — delivery customization"
+handle = "cod-delivery-customization"
+type = "function"
+
+  [extensions.build]
+  command = "npm run build"
+  path = "."
+
+  [[extensions.targeting]]
+  target = "purchase.delivery-customization.run"
+  input_query = "src/run.graphql"
+  export = "run"

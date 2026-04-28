@@ -9,7 +9,13 @@
     "**/.client/**/*.ts",
     "**/.client/**/*.tsx"
   ],
-  "exclude": ["extensions/checkout-cod-fee/**"],
+  "exclude": [
+    "extensions/checkout-cod-fee/**",
+    "extensions/cod-form-embed/**",
+    "extensions/cod-fee-discount/**",
+    "extensions/cod-delivery-customization/**",
+    "extensions/cod-payment-customization/**"
+  ],
   "compilerOptions": {
     "types": ["@remix-run/node", "vite/client"],
     "baseUrl": ".",

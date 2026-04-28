@@ -1,0 +1,26 @@
+# Shopify Function — applies the configured COD surcharge as an order discount
+# (negative) when the buyer pays cash on delivery. Configurable via metafields
+# on the shop; falls back to a flat fee.
+api_version = "2024-10"
+
+[[extensions]]
+name = "Cashflow COD — fee as discount"
+handle = "cod-fee-discount"
+type = "function"
+
+  [extensions.build]
+  command = "npm run build"
+  path = "."
+
+  [extensions.ui.paths]
+  create = "/app/functions"
+  details = "/app/functions"
+
+  [[extensions.targeting]]
+  target = "purchase.cart-transform.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+[extensions.input.variables]
+namespace = "cashflow"
+key = "function-config"

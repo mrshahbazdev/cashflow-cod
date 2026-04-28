@@ -1,0 +1,13 @@
+{
+  "name": "cod-fee-discount",
+  "version": "0.0.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "shopify": "shopify",
+    "typegen": "shopify app function typegen",
+    "build": "shopify app function build",
+    "preview": "shopify app function run"
+  }
+}
