@@ -40,6 +40,9 @@ export default function AppLayout() {
         <Link to="/app/payments">Payments</Link>
         <Link to="/app/i18n">Languages</Link>
         <Link to="/app/shipping">Shipping</Link>
+        <Link to="/app/segments">Segments</Link>
+        <Link to="/app/broadcasts">Broadcasts</Link>
+        <Link to="/app/email-integrations">Email integrations</Link>
         <Link to="/app/integrations">Integrations</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>

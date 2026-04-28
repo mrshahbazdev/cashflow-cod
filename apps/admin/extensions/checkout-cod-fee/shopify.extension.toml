@@ -1,0 +1,35 @@
+api_version = "2025-01"
+
+[[extensions]]
+type = "ui_extension"
+name = "Cashflow COD checkout fee + upsell"
+handle = "checkout-cod-fee"
+
+  [[extensions.targeting]]
+  module = "./src/index.tsx"
+  target = "purchase.checkout.block.render"
+
+  [extensions.capabilities]
+  network_access = true
+  api_access = true
+  block_progress = false
+
+  [extensions.settings]
+
+    [[extensions.settings.fields]]
+    key = "fee_percent"
+    type = "number_decimal"
+    name = "COD fee percent"
+    description = "Surcharge percent applied for cash-on-delivery orders (e.g. 2.5)."
+
+    [[extensions.settings.fields]]
+    key = "upsell_title"
+    type = "single_line_text_field"
+    name = "Upsell title"
+    description = "Headline shown above the COD upsell button (optional)."
+
+    [[extensions.settings.fields]]
+    key = "upsell_handle"
+    type = "single_line_text_field"
+    name = "Upsell product handle"
+    description = "Shopify product handle shown as a one-tick upsell at checkout."

@@ -1,0 +1,19 @@
+{
+  "name": "checkout-cod-fee",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "shopify app build",
+    "dev": "shopify app dev"
+  },
+  "dependencies": {
+    "@shopify/ui-extensions": "2025.1.x",
+    "@shopify/ui-extensions-react": "2025.1.x",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "typescript": "^5.9.3"
+  }
+}

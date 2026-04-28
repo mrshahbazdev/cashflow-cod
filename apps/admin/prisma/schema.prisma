@@ -67,6 +67,9 @@ model Shop {
   landingPages    LandingPage[]
   paymentAccounts PaymentProviderAccount[]
   gdprExports     GdprExport[]
+  segments        CustomerSegment[]
+  broadcasts      Broadcast[]
+  emailIntegrations EmailIntegration[]
 
   @@index([domain])
   @@index([merchantGroupId])
@@ -739,6 +742,73 @@ model LandingPage {
 
   @@index([shopId])
   @@index([formId])
+}
+
+// -----------------------------------------------------------------------------
+// Phase 5 — CRM segments, broadcasts, email integrations
+// -----------------------------------------------------------------------------
+
+/// Customer segment — re-usable saved filter across orders (disposition, risk,
+/// city, language, tags). Used for broadcast targeting.
+model CustomerSegment {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name      String
+  description String?
+  filter    Json     @default("{}") // { disposition, minRisk, maxRisk, city, country, language, tags }
+  memberCount Int    @default(0)
+  lastBuiltAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  broadcasts Broadcast[]
+
+  @@unique([shopId, name])
+  @@index([shopId])
+}
+
+/// Outbound broadcast — WhatsApp / SMS / Email message to a segment.
+model Broadcast {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  segmentId String?
+  segment   CustomerSegment? @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  channel   String   @default("whatsapp") // whatsapp | sms | email
+  name      String
+  body      String
+  status    String   @default("draft") // draft | queued | sending | sent | failed
+  scheduledAt DateTime?
+  startedAt DateTime?
+  finishedAt DateTime?
+  sent      Int      @default(0)
+  failed    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, status])
+  @@index([shopId, createdAt])
+}
+
+/// Klaviyo / Omnisend / generic email-marketing integration. One shop may
+/// connect multiple providers. Credentials live in `credentials` JSON.
+model EmailIntegration {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  provider    String // klaviyo | omnisend | mailchimp | custom
+  label       String
+  credentials Json     @default("{}") // { apiKey, listId, ... }
+  syncSubmissions Boolean @default(true)
+  syncOrders      Boolean @default(true)
+  isActive    Boolean  @default(true)
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, provider, label])
+  @@index([shopId])
 }
 
 /// GDPR-compliance data export / deletion requests (Shopify customer webhooks).
