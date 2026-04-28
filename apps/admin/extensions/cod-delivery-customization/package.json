@@ -1,0 +1,8 @@
+{
+  "name": "cod-delivery-customization",
+  "version": "0.0.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": { "build": "shopify app function build" }
+}

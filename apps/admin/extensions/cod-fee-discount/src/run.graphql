@@ -1,0 +1,15 @@
+query RunInput {
+  cart {
+    cost {
+      totalAmount {
+        amount
+        currencyCode
+      }
+    }
+  }
+  shop {
+    metafield(namespace: "cashflow", key: "function-config") {
+      value
+    }
+  }
+}

@@ -48,6 +48,11 @@ export default function AppLayout() {
         <Link to="/app/broadcasts">Broadcasts</Link>
         <Link to="/app/email-integrations">Email integrations</Link>
         <Link to="/app/integrations">Integrations</Link>
+        <Link to="/app/fx-rates">FX rates</Link>
+        <Link to="/app/returns">Returns</Link>
+        <Link to="/app/api-keys">API keys</Link>
+        <Link to="/app/functions">Shopify Functions</Link>
+        <Link to="/app/agency">Agency</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <Outlet />

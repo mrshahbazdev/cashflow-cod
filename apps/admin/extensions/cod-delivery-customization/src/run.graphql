@@ -1,0 +1,18 @@
+query RunInput {
+  cart {
+    deliveryGroups {
+      deliveryAddress {
+        city
+      }
+    }
+  }
+  deliveryOptions {
+    id
+    title
+  }
+  shop {
+    metafield(namespace: "cashflow", key: "function-config") {
+      value
+    }
+  }
+}

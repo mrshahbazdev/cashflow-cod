@@ -15,7 +15,7 @@ import {
 } from '@shopify/polaris';
 import { authenticate } from '../shopify.server';
 import { getShopByDomain } from '../lib/install.server';
-import { CURRENCIES, formatMoney } from '../lib/currency.server';
+import { CURRENCIES, formatMoney } from '../lib/currency';
 import prisma from '../db.server';
 
 interface ShopSettings {
