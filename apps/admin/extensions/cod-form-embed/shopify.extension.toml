@@ -1,6 +1,7 @@
 name = "cod-form-embed"
 type = "theme"
 api_version = "2025-01"
+uid = "2c97cf81-ef68-6cb2-c59f-1a779b371e2d67badf7c"
 
 [capabilities]
 network_access = true

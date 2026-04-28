@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  if (window.__cashflowCodLoaded) return;
+  window.__cashflowCodLoaded = true;
+
   function onReady(fn) {
     if (document.readyState !== 'loading') fn();
     else document.addEventListener('DOMContentLoaded', fn);
@@ -42,9 +45,34 @@
     }
   }
 
-  function readConfig() {
-    var root = document.getElementById('cashflow-cod-root');
+  // Production URL of the Cashflow COD admin app. Used as the canonical
+  // fallback when a theme block was installed before the schema default
+  // was filled in (so root.dataset.api is empty or still the old
+  // placeholder string). This lets every block self-heal on next page
+  // load instead of asking the merchant to re-edit the theme settings.
+  var CASHFLOW_PROD_API_ORIGIN = 'https://cashflow-cod-production-2aff.up.railway.app';
+
+  function sanitizeApiOrigin(raw) {
+    var v = (raw || '').trim();
+    if (!v) return CASHFLOW_PROD_API_ORIGIN;
+    // Reject obvious placeholders that older versions of the schema
+    // shipped as the default value before PR #19 / #20.
+    if (/your-cashflow-cod-app\.example/i.test(v)) return CASHFLOW_PROD_API_ORIGIN;
+    if (/^https?:\/\/example\./i.test(v)) return CASHFLOW_PROD_API_ORIGIN;
+    if (/your-shop\.myshopify\.com/i.test(v)) return CASHFLOW_PROD_API_ORIGIN;
+    // Reject anything that isn't a valid absolute http(s) URL.
+    try {
+      var u = new URL(v);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return CASHFLOW_PROD_API_ORIGIN;
+      return v.replace(/\/+$/, '');
+    } catch (_e) {
+      return CASHFLOW_PROD_API_ORIGIN;
+    }
+  }
+
+  function readConfigFromRoot(root) {
     if (!root) return null;
+    var rawPrice = root.dataset.productPrice || null;
     return {
       root: root,
       shop: root.dataset.shop,
@@ -53,10 +81,275 @@
       trigger: root.dataset.trigger || 'button',
       accent: root.dataset.accent || '#008060',
       language: root.dataset.language || 'auto',
+      theme: root.dataset.theme || 'auto',
       productId: root.dataset.productId || null,
       variantId: root.dataset.variantId || null,
-      apiOrigin: root.dataset.api || '',
+      productHandle: root.dataset.productHandle || null,
+      productTitle: root.dataset.productTitle || null,
+      productImage: root.dataset.productImage || null,
+      productPrice: rawPrice,
+      productVariantTitle: root.dataset.productVariantTitle || null,
+      unitPrice: rawPrice ? Number(rawPrice) || 0 : 0,
+      btnAnimation: root.dataset.btnAnimation || 'none',
+      apiOrigin: sanitizeApiOrigin(root.dataset.api),
     };
+  }
+
+  function listRoots() {
+    var nodes = document.querySelectorAll(
+      '#cashflow-cod-root, [data-cashflow-cod-root], .cashflow-cod-root',
+    );
+    var out = [];
+    for (var i = 0; i < nodes.length; i++) out.push(nodes[i]);
+    return out;
+  }
+
+  function defaultApiOrigin() {
+    var anyRoot = listRoots()[0];
+    if (anyRoot && anyRoot.dataset.api) return sanitizeApiOrigin(anyRoot.dataset.api);
+    return CASHFLOW_PROD_API_ORIGIN;
+  }
+
+  function defaultShop() {
+    var anyRoot = listRoots()[0];
+    if (anyRoot && anyRoot.dataset.shop) return anyRoot.dataset.shop;
+    return '';
+  }
+
+  var RTL_LANGS = { ar: 1, ur: 1, he: 1, fa: 1 };
+
+  var WIDGET_STRINGS = {
+    en: { apply: 'Apply', applied: 'Applied', discount: 'Discount code', invalid: 'Invalid code' },
+    ur: { apply: 'لاگو کریں', applied: 'لاگو', discount: 'ڈسکاؤنٹ کوڈ', invalid: 'غلط کوڈ' },
+    ar: { apply: 'تطبيق', applied: 'مطبق', discount: 'كود الخصم', invalid: 'كود غير صحيح' },
+    fr: {
+      apply: 'Appliquer',
+      applied: 'Appliqué',
+      discount: 'Code promo',
+      invalid: 'Code invalide',
+    },
+    es: {
+      apply: 'Aplicar',
+      applied: 'Aplicado',
+      discount: 'Código de descuento',
+      invalid: 'Código no válido',
+    },
+    it: {
+      apply: 'Applica',
+      applied: 'Applicato',
+      discount: 'Codice sconto',
+      invalid: 'Codice non valido',
+    },
+    de: {
+      apply: 'Anwenden',
+      applied: 'Angewendet',
+      discount: 'Rabattcode',
+      invalid: 'Ungültiger Code',
+    },
+    pt: {
+      apply: 'Aplicar',
+      applied: 'Aplicado',
+      discount: 'Código de desconto',
+      invalid: 'Código inválido',
+    },
+    pl: {
+      apply: 'Zastosuj',
+      applied: 'Zastosowano',
+      discount: 'Kod rabatowy',
+      invalid: 'Nieprawidłowy kod',
+    },
+    tr: {
+      apply: 'Uygula',
+      applied: 'Uygulandı',
+      discount: 'İndirim kodu',
+      invalid: 'Geçersiz kod',
+    },
+    nl: {
+      apply: 'Toepassen',
+      applied: 'Toegepast',
+      discount: 'Kortingscode',
+      invalid: 'Ongeldige code',
+    },
+    sv: { apply: 'Använd', applied: 'Tillämpad', discount: 'Rabattkod', invalid: 'Ogiltig kod' },
+    da: { apply: 'Anvend', applied: 'Anvendt', discount: 'Rabatkode', invalid: 'Ugyldig kode' },
+    nb: { apply: 'Bruk', applied: 'Brukt', discount: 'Rabattkode', invalid: 'Ugyldig kode' },
+    fi: {
+      apply: 'Käytä',
+      applied: 'Käytössä',
+      discount: 'Alennuskoodi',
+      invalid: 'Virheellinen koodi',
+    },
+    cs: { apply: 'Použít', applied: 'Použito', discount: 'Slevový kód', invalid: 'Neplatný kód' },
+    th: { apply: 'ใช้', applied: 'ใช้แล้ว', discount: 'รหัสส่วนลด', invalid: 'รหัสไม่ถูกต้อง' },
+    ja: { apply: '適用', applied: '適用済み', discount: '割引コード', invalid: '無効なコード' },
+    ko: { apply: '적용', applied: '적용됨', discount: '할인 코드', invalid: '잘못된 코드' },
+    zh: { apply: '应用', applied: '已应用', discount: '折扣码', invalid: '无效代码' },
+    'zh-tw': { apply: '套用', applied: '已套用', discount: '折扣碼', invalid: '無效代碼' },
+    hi: { apply: 'लागू करें', applied: 'लागू', discount: 'छूट कोड', invalid: 'अमान्य कोड' },
+  };
+
+  function resolveLanguage(cfg) {
+    var enabled = (cfg.i18n && cfg.i18n.enabledLanguages && cfg.i18n.enabledLanguages.slice()) || [
+      'en',
+    ];
+    var def = (cfg.i18n && cfg.i18n.defaultLanguage) || 'en';
+    var query = readQuery('lang');
+    var dataLang = cfg.language && cfg.language !== 'auto' ? cfg.language : null;
+    var browser = (navigator.language || 'en').toLowerCase();
+    var browserShort = browser.split('-')[0];
+    var candidates = [query, dataLang, browser, browserShort, def, 'en'];
+    for (var i = 0; i < candidates.length; i++) {
+      var c = (candidates[i] || '').toLowerCase();
+      if (c && enabled.indexOf(c) !== -1) return c;
+    }
+    return def;
+  }
+
+  function tr(cfg, key) {
+    var lang = (cfg && cfg.activeLanguage) || 'en';
+    return (WIDGET_STRINGS[lang] || WIDGET_STRINGS.en)[key] || WIDGET_STRINGS.en[key] || key;
+  }
+
+  function formatMoney(cfg, amount) {
+    var currency = (cfg && cfg.currency && cfg.currency.base) || 'USD';
+    var locale = (cfg && cfg.currency && cfg.currency.locale) || cfg.activeLanguage || 'en';
+    try {
+      return new Intl.NumberFormat(locale, { style: 'currency', currency: currency }).format(
+        Number(amount) || 0,
+      );
+    } catch (e) {
+      return currency + ' ' + (Number(amount) || 0).toFixed(2);
+    }
+  }
+
+  function sanitizeHtml(html) {
+    if (!html) return '';
+    return String(html)
+      .replace(/<\s*script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<\s*script\b[^>]*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
+      .replace(/javascript:/gi, '');
+  }
+
+  function scopeCss(css, scopeSelector) {
+    if (!css) return '';
+    // Strip @import + url(javascript:..) and prefix every selector with the
+    // widget root so merchant CSS can not leak to the rest of the page.
+    var clean = String(css)
+      .replace(/@import[^;]+;?/gi, '')
+      .replace(/url\(\s*javascript:[^)]*\)/gi, 'url(about:blank)');
+    // Tokenise on `}` so we can rewrite selectors block by block.
+    var blocks = clean.split('}');
+    var out = '';
+    for (var i = 0; i < blocks.length; i++) {
+      var block = blocks[i];
+      var braceIdx = block.indexOf('{');
+      if (braceIdx === -1) {
+        out += block;
+        continue;
+      }
+      var selector = block.slice(0, braceIdx).trim();
+      var body = block.slice(braceIdx);
+      if (!selector || selector.charAt(0) === '@') {
+        out += selector + body + '}';
+        continue;
+      }
+      var scoped = selector
+        .split(',')
+        .map(function (s) {
+          var t = s.trim();
+          if (!t) return '';
+          if (t.indexOf(scopeSelector) === 0) return t;
+          return scopeSelector + ' ' + t;
+        })
+        .filter(Boolean)
+        .join(', ');
+      out += scoped + body + '}';
+    }
+    return out;
+  }
+
+  function injectCustomCss(schema, widgetRoot) {
+    if (!schema.customCss) return;
+    var styleId = 'cashflow-cod-style-form-' + Math.random().toString(36).slice(2, 8);
+    var style = document.createElement('style');
+    style.id = styleId;
+    widgetRoot.classList.add('cashflow-cod-scoped-' + styleId.slice(-6));
+    style.textContent = scopeCss(
+      schema.customCss,
+      '.cashflow-cod-widget.cashflow-cod-scoped-' + styleId.slice(-6),
+    );
+    document.head.appendChild(style);
+  }
+
+  function loadGooglePlaces(cfg) {
+    if (window.__cashflowGooglePlacesLoading || window.google) return;
+    window.__cashflowGooglePlacesLoading = true;
+    var s = document.createElement('script');
+    var key = encodeURIComponent(cfg.places.publishableKey);
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + key + '&libraries=places';
+    s.async = true;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
+  function attachPlacesAutocomplete(input, cfg, onPlace) {
+    if (!cfg.places || !cfg.places.enabled || !input) return;
+    function attach() {
+      try {
+        if (
+          !window.google ||
+          !window.google.maps ||
+          !window.google.maps.places ||
+          input.dataset.cashflowPlacesAttached === '1'
+        )
+          return false;
+        var opts = { fields: ['address_components', 'formatted_address', 'geometry'] };
+        if (cfg.places.countries) {
+          var arr = String(cfg.places.countries)
+            .split(',')
+            .map(function (c) {
+              return c.trim().toLowerCase();
+            })
+            .filter(Boolean)
+            .slice(0, 5);
+          if (arr.length) opts.componentRestrictions = { country: arr };
+        }
+        var ac = new window.google.maps.places.Autocomplete(input, opts);
+        ac.addListener('place_changed', function () {
+          var p = ac.getPlace();
+          if (p && typeof onPlace === 'function') onPlace(p);
+        });
+        input.dataset.cashflowPlacesAttached = '1';
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    if (!attach()) {
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        if (attach() || tries > 60) clearInterval(iv);
+      }, 250);
+    }
+  }
+
+  function placeToFields(place) {
+    var out = { address: place.formatted_address || '', city: '', postal: '', country: '' };
+    var components = place.address_components || [];
+    for (var i = 0; i < components.length; i++) {
+      var c = components[i];
+      var types = c.types || [];
+      if (types.indexOf('locality') !== -1) out.city = c.long_name;
+      else if (!out.city && types.indexOf('postal_town') !== -1) out.city = c.long_name;
+      else if (!out.city && types.indexOf('administrative_area_level_2') !== -1)
+        out.city = c.long_name;
+      if (types.indexOf('postal_code') !== -1) out.postal = c.long_name;
+      if (types.indexOf('country') !== -1) out.country = c.long_name;
+    }
+    return out;
   }
 
   function fetchSchema(cfg) {
@@ -66,11 +359,38 @@
       '/api/public/forms/' +
       encodeURIComponent(cfg.formSlug) +
       '?shop=' +
-      encodeURIComponent(cfg.shop);
+      encodeURIComponent(cfg.shop) +
+      '&visitor=' +
+      encodeURIComponent(visitorId());
     return fetch(url, { method: 'GET', credentials: 'omit' }).then(function (r) {
       if (!r.ok) throw new Error('Form not available');
       return r.json();
     });
+  }
+
+  function fetchProductByHandle(handle) {
+    if (!handle) return Promise.resolve(null);
+    var url = '/products/' + encodeURIComponent(handle) + '.js';
+    return fetch(url, { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then(function (product) {
+        if (!product) return null;
+        var variant = product.variants && product.variants[0];
+        var price = variant ? (variant.price / 100).toString() : null;
+        return {
+          id: product.id ? String(product.id) : null,
+          title: product.title || null,
+          image: product.featured_image || (product.images && product.images[0]) || null,
+          price: price,
+          variantTitle: variant && variant.title !== 'Default Title' ? variant.title : null,
+        };
+      })
+      .catch(function () {
+        return null;
+      });
   }
 
   function postJson(cfg, path, payload) {
@@ -87,8 +407,86 @@
     });
   }
 
+  function readCookie(name) {
+    try {
+      var pairs = (document.cookie || '').split(';');
+      for (var i = 0; i < pairs.length; i++) {
+        var p = pairs[i].split('=');
+        if ((p[0] || '').trim() === name) {
+          return decodeURIComponent((p[1] || '').trim());
+        }
+      }
+    } catch (e) {
+      /* noop */
+    }
+    return undefined;
+  }
+
+  function readQuery(name) {
+    try {
+      var u = new URL(window.location.href);
+      return u.searchParams.get(name) || undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  function trackingContext() {
+    var fbc = readCookie('_fbc');
+    var fbclid = readQuery('fbclid');
+    if (!fbc && fbclid) {
+      // Synthesize an _fbc value per Meta's spec when only the click id is in the URL.
+      fbc = 'fb.1.' + Date.now() + '.' + fbclid;
+    }
+    return {
+      fbp: readCookie('_fbp'),
+      fbc: fbc,
+      ttclid: readQuery('ttclid') || readCookie('_ttclid'),
+      ttp: readCookie('_ttp'),
+      scClickId: readQuery('ScCid') || readCookie('_scid'),
+      epik: readCookie('_epik'),
+      sourceUrl: window.location.href,
+    };
+  }
+
+  function fetchCart() {
+    return new Promise(function (resolve) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/cart.js');
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.onload = function () {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (e) {
+          resolve(null);
+        }
+      };
+      xhr.onerror = function () {
+        resolve(null);
+      };
+      xhr.send();
+    });
+  }
+
   function postSubmission(cfg, payload) {
+    payload.tracking = trackingContext();
     return postJson(cfg, '/api/public/submissions', payload);
+  }
+
+  function validateAddress(cfg, address) {
+    return postJson(cfg, '/api/public/address/validate', {
+      shop: cfg.shop,
+      address: address,
+    });
+  }
+
+  function validateDiscountCode(cfg, code, subtotal, productIds) {
+    return postJson(cfg, '/api/public/discounts/validate', {
+      shop: cfg.shop,
+      code: code,
+      subtotal: subtotal,
+      productIds: productIds || [],
+    });
   }
   function requestOtp(cfg, submissionId) {
     return postJson(cfg, '/api/public/otp/request', { submissionId: submissionId });
@@ -99,6 +497,7 @@
       code: code,
       productId: productId,
       variantId: variantId,
+      tracking: trackingContext(),
     });
   }
 
@@ -143,7 +542,7 @@
     return null;
   }
 
-  function renderField(field, data, onChange, error) {
+  function renderField(field, data, onChange, error, cfg) {
     var widthClass = 'cashflow-cod-col-' + (field.width || 'full');
     var input;
     var common = {
@@ -235,6 +634,35 @@
       else if (field.type === 'phone') type = 'tel';
       else if (field.type === 'postal_code') type = 'text';
       input = el('input', Object.assign({}, common, { type: type }));
+      if (field.type === 'address' && cfg && cfg.places && cfg.places.enabled) {
+        input.setAttribute('autocomplete', 'off');
+        setTimeout(function () {
+          attachPlacesAutocomplete(input, cfg, function (place) {
+            var f = placeToFields(place);
+            if (f.address) onChange(field.key, f.address);
+            // Auto-fill sibling city/postal/country fields when present.
+            try {
+              var rootEl = input.closest ? input.closest('.cashflow-cod-widget') : null;
+              if (rootEl) {
+                var fill = function (selector, value) {
+                  if (!value) return;
+                  var el2 = rootEl.querySelector(selector);
+                  if (el2 && !el2.value) {
+                    el2.value = value;
+                    var ev = new Event('input', { bubbles: true });
+                    el2.dispatchEvent(ev);
+                  }
+                };
+                fill('input[name="city"], input[id$="_city"]', f.city);
+                fill('input[name="postal_code"], input[id$="_postal_code"]', f.postal);
+                fill('input[name="country"], select[name="country"]', f.country);
+              }
+            } catch (e) {
+              /* noop */
+            }
+          });
+        }, 0);
+      }
     }
 
     var wrapper = el('div', { class: 'cashflow-cod-field ' + widthClass }, []);
@@ -259,6 +687,8 @@
   }
 
   function styleAccent(accent) {
+    // Drive the entire widget palette from a single CSS custom property so
+    // hover / focus / active surfaces stay in sync with the merchant accent.
     var style = document.getElementById('cashflow-cod-style-accent');
     if (!style) {
       style = document.createElement('style');
@@ -266,22 +696,234 @@
       document.head.appendChild(style);
     }
     style.textContent =
-      '.cashflow-cod-widget .cashflow-cod-submit,' +
-      '.cashflow-cod-widget .cashflow-cod-next {' +
-      'background:' +
-      accent +
-      ';border-color:' +
-      accent +
-      ';}' +
-      '.cashflow-cod-trigger{background:' +
-      accent +
-      ';}' +
-      '.cashflow-cod-widget input:focus,.cashflow-cod-widget select:focus,.cashflow-cod-widget textarea:focus{border-color:' +
-      accent +
-      ';}' +
-      '.cashflow-cod-step.active .cashflow-cod-step-num{background:' +
+      ':root,.cashflow-cod-widget,.cashflow-cod-backdrop,.cashflow-cod-trigger{--cf-accent:' +
       accent +
       ';}';
+  }
+
+  function renderProductCard(cfg, state, schema) {
+    if (cfg.cartItems && cfg.cartItems.length > 0) {
+      return renderCartItems(cfg);
+    }
+    if (!cfg.productTitle) return null;
+    var qty = (state && state.quantity) || cfg.quantity || 1;
+    var unitPrice = cfg.unitPrice || (cfg.productPrice ? Number(cfg.productPrice) : 0);
+    var card = el('div', { class: 'cashflow-cod-product-card' });
+    if (cfg.productImage) {
+      card.appendChild(
+        el('img', { src: cfg.productImage, alt: cfg.productTitle, loading: 'lazy' }),
+      );
+    }
+    var info = el('div', { class: 'cashflow-cod-product-card-info' });
+    info.appendChild(el('p', { class: 'cashflow-cod-product-card-title' }, [cfg.productTitle]));
+    if (cfg.productVariantTitle) {
+      info.appendChild(
+        el('p', { class: 'cashflow-cod-product-card-variant' }, [cfg.productVariantTitle]),
+      );
+    }
+    var priceRow = el('div', { class: 'cashflow-cod-product-card-price-row' });
+    if (unitPrice) {
+      priceRow.appendChild(
+        el('span', { class: 'cashflow-cod-product-card-price' }, [formatMoney(cfg, unitPrice)]),
+      );
+      if (qty > 1) {
+        priceRow.appendChild(
+          el('span', { class: 'cashflow-cod-product-card-qty-badge' }, ['\u00D7 ' + qty]),
+        );
+        priceRow.appendChild(
+          el('span', { class: 'cashflow-cod-product-card-total' }, [
+            formatMoney(cfg, unitPrice * qty),
+          ]),
+        );
+      }
+    }
+    info.appendChild(priceRow);
+    card.appendChild(info);
+    return card;
+  }
+
+  function renderCartItems(cfg) {
+    var wrap = el('div', { class: 'cashflow-cod-cart-items' });
+    var total = 0;
+    for (var i = 0; i < cfg.cartItems.length; i++) {
+      var item = cfg.cartItems[i];
+      var row = el('div', { class: 'cashflow-cod-product-card' });
+      if (item.image) {
+        row.appendChild(el('img', { src: item.image, alt: item.title, loading: 'lazy' }));
+      }
+      var info = el('div', { class: 'cashflow-cod-product-card-info' });
+      info.appendChild(el('p', { class: 'cashflow-cod-product-card-title' }, [item.title]));
+      if (item.variant_title) {
+        info.appendChild(
+          el('p', { class: 'cashflow-cod-product-card-variant' }, [item.variant_title]),
+        );
+      }
+      var priceRow = el('div', { class: 'cashflow-cod-product-card-price-row' });
+      var itemPrice = item.price / 100;
+      var lineTotal = (item.line_price || item.price * item.quantity) / 100;
+      priceRow.appendChild(
+        el('span', { class: 'cashflow-cod-product-card-price' }, [formatMoney(cfg, itemPrice)]),
+      );
+      if (item.quantity > 1) {
+        priceRow.appendChild(
+          el('span', { class: 'cashflow-cod-product-card-qty-badge' }, ['\u00D7 ' + item.quantity]),
+        );
+      }
+      priceRow.appendChild(
+        el('span', { class: 'cashflow-cod-product-card-total' }, [formatMoney(cfg, lineTotal)]),
+      );
+      total += lineTotal;
+      info.appendChild(priceRow);
+      row.appendChild(info);
+      wrap.appendChild(row);
+    }
+    var totalRow = el('div', { class: 'cashflow-cod-cart-total' });
+    totalRow.appendChild(el('span', {}, ['Total']));
+    totalRow.appendChild(el('strong', {}, [formatMoney(cfg, total)]));
+    wrap.appendChild(totalRow);
+    return wrap;
+  }
+
+  function renderQuantitySelector(cfg, state, render, schema) {
+    if (cfg.cartItems && cfg.cartItems.length > 0) return null;
+    if (schema && schema.hideQuantity) return null;
+    var qty = el('div', { class: 'cashflow-cod-qty' });
+    qty.appendChild(
+      el('span', { class: 'cashflow-cod-qty-label' }, [tr(cfg, 'quantity') || 'Quantity']),
+    );
+    var controls = el('div', { class: 'cashflow-cod-qty-controls' });
+    controls.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-qty-btn',
+          disabled: (state.quantity || 1) <= 1 ? 'disabled' : null,
+          onclick: function () {
+            state.quantity = Math.max(1, (state.quantity || 1) - 1);
+            cfg.quantity = state.quantity;
+            render();
+          },
+        },
+        ['\u2212'],
+      ),
+    );
+    controls.appendChild(
+      el('span', { class: 'cashflow-cod-qty-value' }, [String(state.quantity || 1)]),
+    );
+    controls.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-qty-btn',
+          onclick: function () {
+            state.quantity = (state.quantity || 1) + 1;
+            cfg.quantity = state.quantity;
+            render();
+          },
+        },
+        ['+'],
+      ),
+    );
+    qty.appendChild(controls);
+    return qty;
+  }
+
+  function renderSuccessScreen(cfg, state, schema) {
+    var wrap = el('div', { class: 'cashflow-cod-success' });
+    var icon = el('div', { class: 'cashflow-cod-success-icon' });
+    icon.appendChild(
+      el('svg', { viewBox: '0 0 24 24' }, [
+        (function () {
+          var p = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+          p.setAttribute('points', '20 6 9 17 4 12');
+          return p;
+        })(),
+      ]),
+    );
+    icon.innerHTML =
+      '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    wrap.appendChild(icon);
+    wrap.appendChild(el('h3', null, [schema.successTitle || 'Thank you!']));
+    wrap.appendChild(
+      el('p', null, [state.message || schema.successMessage || 'Your order has been placed.']),
+    );
+    if (schema.successCustomHtml) {
+      var custom = el('div', { class: 'cashflow-cod-success-custom' });
+      custom.innerHTML = sanitizeHtml(schema.successCustomHtml);
+      wrap.appendChild(custom);
+    }
+    var share = el('div', { class: 'cashflow-cod-share' });
+    var shareUrl = encodeURIComponent(window.location.href);
+    var shareText = encodeURIComponent(schema.successTitle || 'I just ordered via COD!');
+    share.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-share-btn',
+          title: 'WhatsApp',
+          onclick: function () {
+            window.open('https://wa.me/?text=' + shareText + '%20' + shareUrl, '_blank');
+          },
+        },
+        [
+          (function () {
+            var d = document.createElement('span');
+            d.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="#25d366"><path d="M19.05 4.91A10.43 10.43 0 0 0 12 2a10.5 10.5 0 0 0-9.06 15.7L2 22l4.5-1.18A10.5 10.5 0 1 0 19.05 4.91z"/></svg>';
+            return d.firstChild;
+          })(),
+        ],
+      ),
+    );
+    share.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-share-btn',
+          title: 'Facebook',
+          onclick: function () {
+            window.open('https://www.facebook.com/sharer/sharer.php?u=' + shareUrl, '_blank');
+          },
+        },
+        [
+          (function () {
+            var d = document.createElement('span');
+            d.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12c0-6.627-5.373-12-12-12S0 5.373 0 12c0 5.99 4.388 10.954 10.125 11.854V15.47H7.078V12h3.047V9.356c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874V12h3.328l-.532 3.47h-2.796v8.385C19.612 22.954 24 17.99 24 12z"/></svg>';
+            return d.firstChild;
+          })(),
+        ],
+      ),
+    );
+    share.appendChild(
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'cashflow-cod-share-btn',
+          title: 'Copy link',
+          onclick: function () {
+            try {
+              navigator.clipboard.writeText(window.location.href);
+            } catch (e) {}
+          },
+        },
+        [
+          (function () {
+            var d = document.createElement('span');
+            d.innerHTML =
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+            return d.firstChild;
+          })(),
+        ],
+      ),
+    );
+    wrap.appendChild(share);
+    return wrap;
   }
 
   function renderForm(cfg, schema, mountInto) {
@@ -294,6 +936,11 @@
       submissionId: null,
       otpCode: '',
       otpDestination: '',
+      discountCode: '',
+      discountApplied: false,
+      discountAmount: 0,
+      discountError: '',
+      quantity: cfg.quantity || 1,
     };
 
     // Preselect defaults
@@ -389,14 +1036,35 @@
       state.status = 'submitting';
       state.message = '';
       render();
-      postSubmission(cfg, {
+      var payload = {
         shop: cfg.shop,
         formSlug: cfg.formSlug,
         visitorId: visitorId(),
         productId: cfg.productId,
         variantId: cfg.variantId,
+        productHandle: cfg.productHandle,
+        abVariant: cfg.abVariant || null,
         data: state.data,
-      })
+        discountCode: state.discountApplied ? state.discountCode : null,
+        cartSubtotal: cfg.unitPrice && cfg.quantity ? cfg.unitPrice * cfg.quantity : undefined,
+        quantity: state.quantity || 1,
+        unitPrice: cfg.unitPrice,
+      };
+      if (cfg.cartItems && cfg.cartItems.length > 0) {
+        payload.items = [];
+        for (var ci = 0; ci < cfg.cartItems.length; ci++) {
+          var cItem = cfg.cartItems[ci];
+          payload.items.push({
+            productId: String(cItem.product_id),
+            variantId: String(cItem.variant_id),
+            quantity: cItem.quantity,
+            title: cItem.title,
+            price: cItem.price / 100,
+          });
+        }
+        payload.cartSubtotal = cfg.cartTotal;
+      }
+      postSubmission(cfg, payload)
         .then(function (res) {
           if (res.status >= 200 && res.status < 300 && res.body && res.body.ok) {
             state.submissionId = res.body.submissionId || null;
@@ -466,14 +1134,95 @@
       });
     }
 
+    function applyDiscount() {
+      var code = (state.discountCode || '').trim();
+      if (!code) {
+        state.discountError = 'Enter a code';
+        render();
+        return;
+      }
+      var subtotal =
+        cfg.unitPrice && cfg.quantity ? cfg.unitPrice * cfg.quantity : cfg.unitPrice || 0;
+      state.discountError = '';
+      validateDiscountCode(cfg, code, subtotal, cfg.productId ? [cfg.productId] : []).then(
+        function (res) {
+          if (res.body && res.body.ok) {
+            state.discountApplied = true;
+            state.discountAmount = (res.body.discount && res.body.discount.amount) || 0;
+            state.discountError = '';
+          } else {
+            state.discountApplied = false;
+            state.discountAmount = 0;
+            state.discountError = (res.body && res.body.error) || tr(cfg, 'invalid');
+          }
+          render();
+        },
+      );
+    }
+
+    function renderDiscountBlock() {
+      var box = el('div', { class: 'cashflow-cod-discount' });
+      var row = el('div', { class: 'cashflow-cod-discount-row' });
+      row.appendChild(
+        el('input', {
+          type: 'text',
+          class: 'cashflow-cod-discount-input',
+          placeholder: tr(cfg, 'discount'),
+          value: state.discountCode,
+          oninput: function (e) {
+            state.discountCode = e.target.value.toUpperCase();
+          },
+        }),
+      );
+      row.appendChild(
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'cashflow-cod-discount-apply',
+            onclick: applyDiscount,
+          },
+          [state.discountApplied ? tr(cfg, 'applied') : tr(cfg, 'apply')],
+        ),
+      );
+      box.appendChild(row);
+      if (state.discountApplied) {
+        box.appendChild(
+          el('p', { class: 'cashflow-cod-discount-ok' }, [
+            tr(cfg, 'applied') + ': -' + formatMoney(cfg, state.discountAmount),
+          ]),
+        );
+      } else if (state.discountError) {
+        box.appendChild(el('p', { class: 'cashflow-cod-discount-err' }, [state.discountError]));
+      }
+      return box;
+    }
+
     function render() {
       mountInto.innerHTML = '';
-      var w = el('div', { class: 'cashflow-cod-widget' });
+      var widgetClass =
+        'cashflow-cod-widget' +
+        (cfg.isRtl ? ' cashflow-cod-rtl' : '') +
+        (cfg.activeLanguage ? ' cashflow-cod-lang-' + cfg.activeLanguage.replace('-', '_') : '');
+      var w = el('div', { class: widgetClass, dir: cfg.isRtl ? 'rtl' : 'ltr' });
+      injectCustomCss(schema, w);
+      if (schema.customHtmlHeader) {
+        var hdr = el('div', { class: 'cashflow-cod-custom-header' });
+        hdr.innerHTML = sanitizeHtml(schema.customHtmlHeader);
+        w.appendChild(hdr);
+      }
       w.appendChild(
         el('h2', { class: 'cashflow-cod-title' }, [schema.title || 'Cash on Delivery']),
       );
       if (schema.subtitle) {
         w.appendChild(el('p', { class: 'cashflow-cod-subtitle' }, [schema.subtitle]));
+      }
+      if (schema.trustBadges && schema.trustBadges.length) {
+        var trust = el('div', { class: 'cashflow-cod-trust' });
+        schema.trustBadges.forEach(function (b) {
+          trust.appendChild(el('span', { class: 'cashflow-cod-trust-badge' }, [String(b)]));
+        });
+        w.appendChild(trust);
       }
       if (schema.steps.length > 1) {
         var stepper = el('div', { class: 'cashflow-cod-stepper' });
@@ -496,13 +1245,11 @@
         w.appendChild(stepper);
       }
 
+      var productCard = renderProductCard(cfg, state, schema);
+      if (productCard) w.appendChild(productCard);
+
       if (state.status === 'success') {
-        w.appendChild(
-          el('div', { class: 'cashflow-cod-success' }, [
-            el('h3', null, ['Thank you!']),
-            el('p', null, [state.message || 'Your order has been placed.']),
-          ]),
-        );
+        w.appendChild(renderSuccessScreen(cfg, state, schema));
       } else if (state.status === 'otp' || state.status === 'verifying') {
         var otpWrap = el('div', { class: 'cashflow-cod-otp' }, [
           el('h3', null, ['Verify your phone']),
@@ -543,11 +1290,14 @@
         ]);
         w.appendChild(otpWrap);
       } else {
+        var qtyEl = renderQuantitySelector(cfg, state, render, schema);
+        if (qtyEl && state.stepIdx === 0) w.appendChild(qtyEl);
+
         var step = schema.steps[state.stepIdx];
         var grid = el('div', { class: 'cashflow-cod-grid' });
         (step.fields || []).forEach(function (f) {
           if (!isVisible(f, state.data)) return;
-          grid.appendChild(renderField(f, state.data, onChange, state.errors[f.key] || null));
+          grid.appendChild(renderField(f, state.data, onChange, state.errors[f.key] || null, cfg));
         });
         w.appendChild(grid);
 
@@ -557,13 +1307,17 @@
           );
         }
 
+        var isLast = state.stepIdx === schema.steps.length - 1;
+        if (isLast && schema.allowDiscountCode !== false) {
+          w.appendChild(renderDiscountBlock());
+        }
+
         var nav = el('div', { class: 'cashflow-cod-nav' });
         if (state.stepIdx > 0) {
           nav.appendChild(
             el('button', { type: 'button', class: 'cashflow-cod-prev', onclick: goPrev }, ['Back']),
           );
         }
-        var isLast = state.stepIdx === schema.steps.length - 1;
         var btnLabel =
           state.status === 'submitting'
             ? 'Placing order…'
@@ -589,14 +1343,29 @@
         w.appendChild(el('p', { class: 'cashflow-cod-legal' }, [schema.legalText]));
       }
 
+      if (schema.customHtmlFooter) {
+        var ftr = el('div', { class: 'cashflow-cod-custom-footer' });
+        ftr.innerHTML = sanitizeHtml(schema.customHtmlFooter);
+        w.appendChild(ftr);
+      }
+
       mountInto.appendChild(w);
     }
 
     render();
   }
 
+  function resolveThemeClass(cfg) {
+    var theme = (cfg && cfg.theme) || 'auto';
+    if (theme === 'dark') return 'cashflow-cod-dark';
+    if (theme === 'light') return '';
+    return '';
+  }
+
   function mountPopup(cfg, schema) {
-    var backdrop = el('div', { class: 'cashflow-cod-backdrop' });
+    var themeClass = resolveThemeClass(cfg);
+    var backdropClass = 'cashflow-cod-backdrop' + (themeClass ? ' ' + themeClass : '');
+    var backdrop = el('div', { class: backdropClass });
     var modal = el('div', { class: 'cashflow-cod-modal' });
     var close = el(
       'button',
@@ -642,34 +1411,35 @@
     document.body.appendChild(btn);
   }
 
-  function registerSw(cfg) {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-      var swUrl = (cfg.assetBase || '') + '/cod-form-sw.js';
-      navigator.serviceWorker
-        .register(swUrl, { scope: '/' })
-        .then(function (reg) {
-          if (reg && reg.active) {
-            reg.active.postMessage({ type: 'drain-queue' });
-          }
-        })
-        .catch(function () {});
-      window.addEventListener('online', function () {
-        navigator.serviceWorker.getRegistration().then(function (reg) {
-          if (reg && reg.active) reg.active.postMessage({ type: 'drain-queue' });
-        });
-      });
-    } catch (_e) {
-      /* ignore */
-    }
+  // Service-worker registration is intentionally disabled. The offline
+  // submission queue would need cod-form-sw.js to be served from the
+  // merchant's storefront origin (service workers are same-origin only),
+  // but theme app extensions ship their assets from
+  // extensions.shopifycdn.com — so the SW URL resolves to a 404 on the
+  // storefront. We keep the SW source file in the bundle so a future
+  // build step can publish it via the App Proxy if/when offline support
+  // is re-enabled, but we never call register() from the storefront.
+  function registerSw(_cfg) {
+    /* no-op */
   }
 
-  function boot() {
-    var cfg = readConfig();
-    if (!cfg) return;
-    if (window.__CASHFLOW_COD_BOOTED__) return;
-    window.__CASHFLOW_COD_BOOTED__ = true;
+  function currentPageType() {
+    var path = window.location.pathname;
+    if (/\/products\//.test(path)) return 'product';
+    if (/\/cart\b/.test(path)) return 'cart';
+    return 'other';
+  }
 
+  function placementMatchesPage(placement) {
+    if (!placement || placement === 'custom' || placement === 'landing') return true;
+    return currentPageType() === placement;
+  }
+
+  function bootRoot(root) {
+    if (root.__cashflowBooted) return;
+    root.__cashflowBooted = true;
+    var cfg = readConfigFromRoot(root);
+    if (!cfg) return;
     if (!cfg.apiOrigin) {
       if (window.console && console.warn)
         console.warn(
@@ -677,17 +1447,32 @@
         );
       return;
     }
-
+    if (!placementMatchesPage(cfg.placement)) return;
     registerSw(cfg);
     styleAccent(cfg.accent);
 
-    fetchSchema(cfg).then(
+    return fetchSchema(cfg).then(
       function (res) {
-        var schema = res && res.form && res.form.schema;
+        var formData = res && res.form;
+        var schema = formData && formData.schema;
         if (!schema) {
           console.warn('[Cashflow COD] No form schema returned');
           return;
         }
+        if (formData.i18n) cfg.i18n = formData.i18n;
+        if (formData.currency) cfg.currency = formData.currency;
+        if (formData.places) cfg.places = formData.places;
+        cfg.activeLanguage = resolveLanguage(cfg);
+        cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+        if (res.abVariant) cfg.abVariant = res.abVariant;
+        if (res.abSchemaOverride) {
+          for (var k in res.abSchemaOverride) schema[k] = res.abSchemaOverride[k];
+        }
+        if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+
+        root.__cashflowCfg = cfg;
+        root.__cashflowSchema = schema;
+
         if (cfg.trigger === 'inline') {
           mountInline(cfg, schema, cfg.root);
         } else if (cfg.trigger === 'floating') {
@@ -695,8 +1480,21 @@
         } else {
           var triggerBtn = cfg.root.querySelector('[data-cashflow-cod-trigger]');
           if (triggerBtn) {
+            if (cfg.btnAnimation && cfg.btnAnimation !== 'none') {
+              triggerBtn.classList.add('cashflow-cod-anim-' + cfg.btnAnimation);
+            }
             triggerBtn.addEventListener('click', function () {
-              mountPopup(cfg, schema);
+              if (currentPageType() === 'cart') {
+                fetchCart().then(function (cart) {
+                  if (cart && cart.items && cart.items.length > 0) {
+                    cfg.cartItems = cart.items;
+                    cfg.cartTotal = cart.total_price / 100;
+                  }
+                  mountPopup(cfg, schema);
+                });
+              } else {
+                mountPopup(cfg, schema);
+              }
             });
           }
         }
@@ -707,5 +1505,326 @@
     );
   }
 
-  onReady(boot);
+  function boot() {
+    var roots = listRoots();
+    for (var i = 0; i < roots.length; i++) bootRoot(roots[i]);
+    if (!window.cashflowCod) {
+      window.cashflowCod = buildPublicApi();
+    }
+  }
+
+  function buildPublicApi() {
+    function ephemeralCfg(opts) {
+      opts = opts || {};
+      var apiOrigin = opts.apiOrigin || defaultApiOrigin();
+      var shop = opts.shop || defaultShop();
+      if (!apiOrigin || !shop) {
+        if (window.console && console.warn)
+          console.warn('[Cashflow COD] cashflowCod.open(): missing apiOrigin or shop.');
+        return null;
+      }
+      var unitPrice = opts.productPrice ? Number(opts.productPrice) || 0 : 0;
+      var anyRoot = listRoots()[0];
+      var rootTheme = anyRoot ? anyRoot.dataset.theme || 'auto' : 'auto';
+      return {
+        root: document.body,
+        shop: shop,
+        formSlug: opts.slug || 'default',
+        placement: opts.placement || 'custom',
+        trigger: 'button',
+        accent: opts.accent || '#008060',
+        language: opts.language || 'auto',
+        theme: opts.theme || rootTheme,
+        productId: opts.productId || null,
+        variantId: opts.variantId || null,
+        productHandle: opts.productHandle || null,
+        productTitle: opts.productTitle || null,
+        productImage: opts.productImage || null,
+        productPrice: opts.productPrice || null,
+        productVariantTitle: opts.productVariantTitle || null,
+        unitPrice: unitPrice,
+        apiOrigin: apiOrigin,
+      };
+    }
+
+    function open(slug, opts) {
+      if (document.querySelector('.cashflow-cod-backdrop')) return Promise.resolve();
+
+      var cfg = ephemeralCfg(
+        Object.assign({}, opts || {}, { slug: slug || (opts && opts.slug) || 'default' }),
+      );
+      if (!cfg) return Promise.reject(new Error('Missing apiOrigin/shop'));
+      styleAccent(cfg.accent);
+
+      var needsFetch = cfg.productHandle && !cfg.productTitle;
+      var productPromise = needsFetch
+        ? fetchProductByHandle(cfg.productHandle)
+        : Promise.resolve(null);
+
+      return productPromise
+        .then(function (productData) {
+          if (productData) {
+            cfg.productTitle = cfg.productTitle || productData.title;
+            cfg.productImage = cfg.productImage || productData.image;
+            cfg.productPrice = cfg.productPrice || productData.price;
+            cfg.productId = cfg.productId || productData.id;
+            cfg.productVariantTitle = cfg.productVariantTitle || productData.variantTitle;
+            if (productData.price) cfg.unitPrice = Number(productData.price) || 0;
+          }
+          return fetchSchema(cfg);
+        })
+        .then(function (res) {
+          var formData = res && res.form;
+          var schema = formData && formData.schema;
+          if (!schema) throw new Error('No form schema returned');
+          if (formData.i18n) cfg.i18n = formData.i18n;
+          if (formData.currency) cfg.currency = formData.currency;
+          if (formData.places) cfg.places = formData.places;
+          cfg.activeLanguage = resolveLanguage(cfg);
+          cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+          if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+          mountPopup(cfg, schema);
+        });
+    }
+
+    function mountInlineApi(slug, target, opts) {
+      var el = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!el) return Promise.reject(new Error('Target element not found'));
+      var cfg = ephemeralCfg(Object.assign({}, opts || {}, { slug: slug || 'default' }));
+      if (!cfg) return Promise.reject(new Error('Missing apiOrigin/shop'));
+      cfg.root = el;
+      styleAccent(cfg.accent);
+      return fetchSchema(cfg).then(function (res) {
+        var formData = res && res.form;
+        var schema = formData && formData.schema;
+        if (!schema) throw new Error('No form schema returned');
+        if (formData.i18n) cfg.i18n = formData.i18n;
+        if (formData.currency) cfg.currency = formData.currency;
+        if (formData.places) cfg.places = formData.places;
+        cfg.activeLanguage = resolveLanguage(cfg);
+        cfg.isRtl = !!RTL_LANGS[cfg.activeLanguage];
+        if (cfg.places && cfg.places.enabled) loadGooglePlaces(cfg);
+        mountInline(cfg, schema, el);
+      });
+    }
+
+    return {
+      open: open,
+      mountInline: mountInlineApi,
+      version: '1.0',
+    };
+  }
+
+  // Auto-bind: any element with [data-cashflow-cod-open="<slug>"] opens the
+  // form on click. Lets merchants drop a CTA anywhere (theme block, custom
+  // section, blog post) without writing JS.
+  function bindOpenAttributes() {
+    document.addEventListener('click', function (ev) {
+      var target = ev.target;
+      while (target && target !== document.body) {
+        if (target.getAttribute && target.hasAttribute('data-cashflow-cod-open')) {
+          var slug = target.getAttribute('data-cashflow-cod-open') || 'default';
+          if (window.cashflowCod && window.cashflowCod.open) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            window.cashflowCod
+              .open(slug, {
+                productId: target.getAttribute('data-product-id') || null,
+                variantId: target.getAttribute('data-variant-id') || null,
+                productHandle: target.getAttribute('data-product-handle') || null,
+                productTitle: target.getAttribute('data-product-title') || null,
+                productImage: target.getAttribute('data-product-image') || null,
+                productPrice: target.getAttribute('data-product-price') || null,
+                productVariantTitle: target.getAttribute('data-product-variant-title') || null,
+              })
+              .catch(function (err) {
+                if (window.console && console.error)
+                  console.error('[Cashflow COD] Failed to open form:', err);
+              });
+            return;
+          }
+        }
+        target = target.parentNode;
+      }
+    });
+  }
+
+  /* ---------- Collection / related products auto-injection ---------- */
+  var CF_COL_INJECTED = 'data-cf-auto-injected';
+
+  function extractProductHandle(card) {
+    var link = card.querySelector('a[href*="/products/"]');
+    if (!link) return null;
+    var m = link.href.match(/\/products\/([\w-]+)/);
+    return m ? m[1] : null;
+  }
+
+  function extractCardProductInfo(card) {
+    var info = { title: '', image: '', price: '' };
+    var titleEl = card.querySelector(
+      '.card__heading a, .card__heading, .product-card__title, .product__title, ' +
+        '[class*="product-title"], [class*="ProductTitle"], h3 a, h2 a, .card__content a',
+    );
+    if (titleEl) info.title = (titleEl.textContent || '').trim();
+    var imgEl = card.querySelector(
+      'img[src*="cdn.shopify"], img[srcset], .card__media img, .product-card__image img, img',
+    );
+    if (imgEl) info.image = imgEl.src || imgEl.getAttribute('srcset') || '';
+    if (info.image && info.image.indexOf(',') !== -1)
+      info.image = info.image.split(',')[0].trim().split(' ')[0];
+    var priceEl = card.querySelector(
+      '.price-item--regular, .price__regular .price-item, .product-price, ' +
+        '.money, [class*="price"], [class*="Price"]',
+    );
+    if (priceEl) {
+      var raw = (priceEl.textContent || '').replace(/[^\d.,]/g, '').trim();
+      if (raw) info.price = raw;
+    }
+    return info;
+  }
+
+  function cardAlreadyHasCodBtn(card) {
+    if (card.hasAttribute(CF_COL_INJECTED)) return true;
+    if (card.querySelector('[data-cashflow-cod-open]')) return true;
+    var ancestor = card.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      if (ancestor.hasAttribute(CF_COL_INJECTED)) return true;
+      ancestor = ancestor.parentElement;
+    }
+    return false;
+  }
+
+  function findCollectionCards() {
+    var cards = [];
+    var selectors = [
+      '.product-card',
+      '.card-product',
+      '.grid-product',
+      '.product-item',
+      '.product-grid-item',
+      '.card-wrapper',
+      '.product-card-wrapper',
+      '.collection-product-card',
+      'li.grid__item',
+      '.grid__item .card',
+      '[class*="ProductItem"]',
+      '[class*="product-card"]',
+      '[class*="product_card"]',
+      '.card--product',
+      '.product',
+      '.related-products .card',
+      '.product-recommendations .card',
+      '[class*="related"] [class*="product"]',
+      '[class*="recommend"] [class*="product"]',
+      '.complementary-products .card',
+      'product-recommendations .card',
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var found = document.querySelectorAll(selectors[i]);
+      if (found.length > 1) {
+        for (var j = 0; j < found.length; j++) {
+          var c = found[j];
+          if (c.querySelector('a[href*="/products/"]') && !cardAlreadyHasCodBtn(c)) {
+            cards.push(c);
+          }
+        }
+        if (cards.length > 0) break;
+      }
+    }
+    if (cards.length === 0) {
+      var links = document.querySelectorAll('a[href*="/products/"]');
+      var seen = {};
+      for (var k = 0; k < links.length; k++) {
+        var parent = links[k].closest(
+          'li, .card, .grid__item, [class*="product"], [class*="recommend"]',
+        );
+        if (parent && !seen[parent] && !cardAlreadyHasCodBtn(parent)) {
+          seen[parent] = true;
+          cards.push(parent);
+        }
+      }
+    }
+    return cards;
+  }
+
+  function getCollectionBtnConfig() {
+    var cfgEl = document.querySelector('[data-cashflow-collection-cfg]');
+    var anyRoot = cfgEl || listRoots()[0];
+    if (!anyRoot) return null;
+    var ds = anyRoot.dataset || {};
+    return {
+      slug: ds.formSlug || 'default',
+      accent: ds.accent || '#008060',
+      textColor: ds.textColor || '#ffffff',
+      label: ds.btnLabel || 'Cash on Delivery',
+      icon: ds.btnIcon || 'cart',
+      radius: ds.btnRadius || '8',
+      fontSize: ds.btnFontSize || '14',
+      fullWidth: ds.btnFullWidth !== 'false',
+    };
+  }
+
+  var COD_CART_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;flex:0 0 auto"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>';
+
+  function injectCollectionButtons() {
+    var btnCfg = getCollectionBtnConfig();
+    if (!btnCfg) return;
+    var cards = findCollectionCards();
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      var handle = extractProductHandle(card);
+      if (!handle) continue;
+      card.setAttribute(CF_COL_INJECTED, '1');
+      var pInfo = extractCardProductInfo(card);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cashflow-cod-collection-btn';
+      btn.setAttribute('data-cashflow-cod-open', btnCfg.slug);
+      btn.setAttribute('data-product-handle', handle);
+      if (pInfo.title) btn.setAttribute('data-product-title', pInfo.title);
+      if (pInfo.image) btn.setAttribute('data-product-image', pInfo.image);
+      if (pInfo.price) btn.setAttribute('data-product-price', pInfo.price);
+      btn.style.cssText =
+        'background:' +
+        btnCfg.accent +
+        ';color:' +
+        btnCfg.textColor +
+        ';border-radius:' +
+        btnCfg.radius +
+        'px;font-size:' +
+        btnCfg.fontSize +
+        'px;' +
+        (btnCfg.fullWidth ? 'width:100%;' : 'display:inline-flex;');
+      btn.innerHTML =
+        (btnCfg.icon !== 'none' ? COD_CART_SVG : '') + '<span>' + btnCfg.label + '</span>';
+      card.style.position = card.style.position || 'relative';
+      card.appendChild(btn);
+    }
+  }
+
+  function autoInjectCollection() {
+    var pageType = currentPageType();
+    if (pageType === 'product') {
+      setTimeout(function () {
+        injectCollectionButtons();
+      }, 800);
+    } else {
+      injectCollectionButtons();
+    }
+    var debounceTimer = null;
+    var observer = new MutationObserver(function () {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        injectCollectionButtons();
+      }, 300);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  onReady(function () {
+    boot();
+    bindOpenAttributes();
+    autoInjectCollection();
+  });
 })();

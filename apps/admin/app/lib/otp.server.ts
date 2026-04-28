@@ -2,6 +2,7 @@ import type { Shop, Submission } from '@prisma/client';
 import type { OtpChannel } from '@cashflow-cod/shared-types';
 import {
   consoleAdapter,
+  dialog360Adapter,
   generateOtp,
   messagingRegistry,
   twilioAdapter,
@@ -14,10 +15,14 @@ function registerAdapters() {
   if (adaptersRegistered) return;
   messagingRegistry.register(consoleAdapter);
   messagingRegistry.register(twilioAdapter);
+  messagingRegistry.register(dialog360Adapter);
   adaptersRegistered = true;
 }
 
-function pickAdapter(shop: Shop): {
+function pickAdapter(
+  shop: Shop,
+  channel: OtpChannel,
+): {
   adapter: MessagingAdapter;
   credentials: Record<string, string>;
 } {
@@ -25,15 +30,30 @@ function pickAdapter(shop: Shop): {
   const settings = (shop.settings as Record<string, unknown>) ?? {};
   const otp = (settings.otp as Record<string, unknown>) ?? {};
   const provider = (otp.provider as string) || 'custom';
-  const fromEnv = {
+  const twilioCreds = {
     accountSid: process.env.TWILIO_ACCOUNT_SID ?? '',
     authToken: process.env.TWILIO_AUTH_TOKEN ?? '',
     fromSms: process.env.TWILIO_SMS_FROM ?? process.env.TWILIO_PHONE_NUMBER ?? '',
     fromWhatsapp: process.env.TWILIO_WA_FROM ?? '',
   };
-  if (provider === 'twilio' && fromEnv.accountSid && fromEnv.authToken) {
+  const dialog360Creds = {
+    apiKey: process.env.DIALOG360_API_KEY ?? '',
+    phoneNumberId: process.env.DIALOG360_PHONE_NUMBER_ID ?? '',
+    templateNamespace: process.env.DIALOG360_TEMPLATE_NAMESPACE ?? '',
+    templateLang: process.env.DIALOG360_TEMPLATE_LANG ?? 'en',
+  };
+  if (
+    channel === 'WHATSAPP' &&
+    (provider === '360dialog' || (!provider && dialog360Creds.apiKey))
+  ) {
+    const adapter = messagingRegistry.get('360dialog');
+    if (adapter && dialog360Creds.apiKey) {
+      return { adapter, credentials: dialog360Creds };
+    }
+  }
+  if (provider === 'twilio' && twilioCreds.accountSid && twilioCreds.authToken) {
     const adapter = messagingRegistry.get('twilio');
-    if (adapter) return { adapter, credentials: fromEnv };
+    if (adapter) return { adapter, credentials: twilioCreds };
   }
   const fallback = messagingRegistry.get('custom');
   if (!fallback) throw new Error('No messaging adapter registered');
@@ -75,7 +95,7 @@ export async function requestOtpForSubmission({
     },
   });
 
-  const { adapter, credentials } = pickAdapter(shop);
+  const { adapter, credentials } = pickAdapter(shop, channel);
   const storeName = (shop.domain.split('.')[0] ?? 'store').replace(/-/g, ' ');
   const body = `Your ${storeName} verification code is ${code}. It expires in ${timeoutMinutes} minutes.`;
   try {

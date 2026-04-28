@@ -1,78 +1,76 @@
-import type { CourierAdapter, CourierBookingRequest, CourierBookingResult, CourierTrackingEvent } from '../index.js';
+import type { CourierAdapter, CourierBookingResult, CourierTrackingEvent } from '../index.js';
+import { mockBookingResult, mockTrackingEvents } from './_mock.js';
 
 /**
- * Aramex (MENA + global) adapter.
- * API docs: https://www.aramex.com/developers
- * Credentials: clientInfo (username, password, version, accountNumber, accountPin, accountEntity, accountCountryCode).
- * Falls back to deterministic mock when credentials missing or mode=mock.
+ * Aramex (regional) adapter using the Shipping Services SOAP/JSON gateway.
+ * Required credentials:
+ *   - username, password, accountNumber, accountPin, accountEntity, accountCountryCode
+ *   - mode (optional): 'mock' to bypass network calls
+ * API docs: https://www.aramex.com/developers/aramex-apis
  */
 export const aramexAdapter: CourierAdapter = {
   code: 'aramex',
   displayName: 'Aramex',
-  regions: ['AE', 'SA', 'EG', 'JO', 'KW', 'QA', 'BH', 'OM', 'GLOBAL'],
+  regions: ['AE', 'SA', 'EG', 'JO', 'LB', 'QA', 'BH', 'OM', 'KW'],
 
   async book(credentials, req): Promise<CourierBookingResult> {
-    const missing =
-      !credentials.userName ||
-      !credentials.password ||
-      !credentials.accountNumber ||
-      !credentials.accountPin;
-    if (credentials.mode === 'mock' || missing) {
-      return mockResult(req, 'ARX');
+    const required = [
+      'username',
+      'password',
+      'accountNumber',
+      'accountPin',
+      'accountEntity',
+      'accountCountryCode',
+    ];
+    if (credentials.mode === 'mock' || required.some((k) => !credentials[k])) {
+      return mockBookingResult(req, 'aramex');
     }
-    try {
-      const body = {
-        ClientInfo: buildClientInfo(credentials),
-        LabelInfo: { ReportID: 9201, ReportType: 'URL' },
-        Shipments: [
-          {
-            Reference1: req.orderId,
-            Shipper: {
-              Reference1: credentials.accountNumber,
-              AccountNumber: credentials.accountNumber,
-              PartyAddress: {
-                Line1: credentials.shipperAddress || 'Shipper Address',
-                City: credentials.shipperCity || 'Dubai',
-                CountryCode: credentials.accountCountryCode || 'AE',
-              },
-              Contact: {
-                PersonName: credentials.shipperName || 'Cashflow COD',
-                CompanyName: credentials.shipperCompany || 'Cashflow COD',
-                PhoneNumber1: credentials.shipperPhone || '000',
-                CellPhone: credentials.shipperPhone || '000',
-                EmailAddress: credentials.shipperEmail || 'shipper@example.com',
-              },
-            },
-            Consignee: {
-              PartyAddress: {
-                Line1: req.addressLine1,
-                Line2: req.addressLine2 || '',
-                City: req.city,
-                PostCode: req.postalCode || '',
-                CountryCode: credentials.destinationCountryCode || 'AE',
-              },
-              Contact: {
-                PersonName: req.customerName,
-                PhoneNumber1: req.phone,
-                CellPhone: req.phone,
-                EmailAddress: 'buyer@example.com',
-              },
-            },
-            Details: {
-              ActualWeight: { Unit: 'KG', Value: req.weightKg ?? 0.5 },
-              ProductGroup: 'DOM',
-              ProductType: 'CDS',
-              PaymentType: 'P',
-              NumberOfPieces: 1,
-              DescriptionOfGoods: req.notes || 'COD order',
-              GoodsOriginCountry: credentials.accountCountryCode || 'AE',
-              CashOnDeliveryAmount: { CurrencyCode: req.currency, Value: req.amount },
-            },
-          },
-        ],
-        Transaction: { Reference1: req.orderId },
-      };
 
+    const body = {
+      ClientInfo: {
+        UserName: credentials.username,
+        Password: credentials.password,
+        Version: 'v1.0',
+        AccountNumber: credentials.accountNumber,
+        AccountPin: credentials.accountPin,
+        AccountEntity: credentials.accountEntity,
+        AccountCountryCode: credentials.accountCountryCode,
+        Source: 24,
+      },
+      Shipments: [
+        {
+          Reference1: req.orderId,
+          Shipper: { Reference1: req.orderId },
+          Consignee: {
+            Reference1: req.orderId,
+            PartyAddress: {
+              Line1: req.addressLine1,
+              Line2: req.addressLine2 ?? '',
+              City: req.city,
+              PostCode: req.postalCode ?? '',
+              CountryCode: credentials.destinationCountry ?? 'AE',
+            },
+            Contact: { PersonName: req.customerName, PhoneNumber1: req.phone },
+          },
+          ShippingDateTime: new Date().toISOString(),
+          DueDate: new Date(Date.now() + 7 * 86400e3).toISOString(),
+          Details: {
+            Dimensions: { Length: 10, Width: 10, Height: 10, Unit: 'CM' },
+            ActualWeight: { Value: req.weightKg ?? 0.5, Unit: 'KG' },
+            ProductGroup: 'DOM',
+            ProductType: 'CDA',
+            PaymentType: 'P',
+            CashOnDeliveryAmount: { Value: req.amount, CurrencyCode: req.currency },
+            DescriptionOfGoods: req.notes ?? 'COD order',
+            CountryOfOrigin: credentials.destinationCountry ?? 'AE',
+            NumberOfPieces: 1,
+          },
+        },
+      ],
+      LabelInfo: { ReportID: 9201, ReportType: 'URL' },
+    };
+
+    try {
       const resp = await fetch(
         'https://ws.aramex.net/ShippingAPI.V2/Shipping/Service_1_0.svc/json/CreateShipments',
         {
@@ -82,83 +80,70 @@ export const aramexAdapter: CourierAdapter = {
         },
       );
       const json = (await resp.json()) as {
+        Shipments?: Array<{ ID?: string; ShipmentLabel?: { LabelURL?: string } }>;
         HasErrors?: boolean;
-        Shipments?: Array<{ ID?: string; HasErrors?: boolean; ShipmentLabel?: { LabelURL?: string } }>;
       };
-      const shipment = json.Shipments?.[0];
-      if (json.HasErrors || !shipment?.ID) {
+      const cn = json.Shipments?.[0]?.ID;
+      if (!cn || json.HasErrors) {
         return { consignmentNumber: '', status: 'failed', raw: json };
       }
       return {
-        consignmentNumber: shipment.ID,
-        labelUrl: shipment.ShipmentLabel?.LabelURL,
-        trackingUrl: `https://www.aramex.com/track/results?ShipmentNumber=${shipment.ID}`,
+        consignmentNumber: cn,
+        labelUrl: json.Shipments?.[0]?.ShipmentLabel?.LabelURL,
+        trackingUrl: `https://www.aramex.com/track/results?ShipmentNumber=${cn}`,
         status: 'booked',
         raw: json,
       };
     } catch (err) {
-      return { consignmentNumber: '', status: 'failed', raw: { error: (err as Error).message } };
+      return {
+        consignmentNumber: '',
+        status: 'failed',
+        raw: { error: (err as Error).message },
+      };
     }
   },
 
   async track(credentials, consignmentNumber): Promise<CourierTrackingEvent[]> {
-    const missing = !credentials.userName || !credentials.password;
-    if (credentials.mode === 'mock' || missing) {
-      return [
-        { status: 'Booked', occurredAt: new Date().toISOString() },
-        { status: 'In Transit', occurredAt: new Date(Date.now() - 3600e3).toISOString() },
-      ];
-    }
+    if (credentials.mode === 'mock' || !credentials.username) return mockTrackingEvents();
     try {
-      const body = {
-        ClientInfo: buildClientInfo(credentials),
-        Shipments: [consignmentNumber],
-        GetLastTrackingUpdateOnly: false,
-      };
       const resp = await fetch(
         'https://ws.aramex.net/ShippingAPI.V2/Tracking/Service_1_0.svc/json/TrackShipments',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            ClientInfo: {
+              UserName: credentials.username,
+              Password: credentials.password,
+              Version: 'v1.0',
+              AccountNumber: credentials.accountNumber,
+              AccountPin: credentials.accountPin,
+              AccountEntity: credentials.accountEntity,
+              AccountCountryCode: credentials.accountCountryCode,
+              Source: 24,
+            },
+            Shipments: [consignmentNumber],
+          }),
         },
       );
       const json = (await resp.json()) as {
         TrackingResults?: Array<{
-          Value?: Array<{ UpdateDateTime: string; UpdateDescription: string; UpdateLocation?: string }>;
+          Key?: string;
+          Value?: Array<{
+            UpdateDescription?: string;
+            UpdateLocation?: string;
+            UpdateDateTime?: string;
+          }>;
         }>;
       };
-      const events = json.TrackingResults?.[0]?.Value ?? [];
-      return events.map((e) => ({
-        status: e.UpdateDescription,
-        occurredAt: e.UpdateDateTime,
+      const entries = json.TrackingResults?.[0]?.Value ?? [];
+      return entries.map((e) => ({
+        status: e.UpdateDescription ?? 'Update',
         location: e.UpdateLocation,
+        occurredAt: e.UpdateDateTime ?? new Date().toISOString(),
       }));
     } catch {
       return [];
     }
   },
 };
-
-function buildClientInfo(credentials: Record<string, string>): Record<string, string> {
-  return {
-    UserName: credentials.userName!,
-    Password: credentials.password!,
-    Version: credentials.version || 'v1.0',
-    AccountNumber: credentials.accountNumber!,
-    AccountPin: credentials.accountPin!,
-    AccountEntity: credentials.accountEntity || 'DXB',
-    AccountCountryCode: credentials.accountCountryCode || 'AE',
-    Source: credentials.source || '24',
-  };
-}
-
-function mockResult(req: CourierBookingRequest, prefix: string): CourierBookingResult {
-  const cn = `${prefix}-${req.orderId.slice(-6).toUpperCase()}`;
-  return {
-    consignmentNumber: cn,
-    trackingUrl: `https://www.aramex.com/track/results?ShipmentNumber=${cn}`,
-    status: 'booked',
-    raw: { mock: true },
-  };
-}

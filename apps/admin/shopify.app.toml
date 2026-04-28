@@ -6,8 +6,8 @@
 
 name = "cashflow-cod"
 handle = "cashflow-cod"
-client_id = ""
-application_url = "https://example.com/"
+client_id = "94f0f32b340b3d321b3a6756bdcab9fb"
+application_url = "https://cashflow-cod-production-2aff.up.railway.app"
 embedded = true
 
 [access_scopes]
@@ -15,9 +15,9 @@ scopes = "read_products,write_products,read_orders,write_orders,read_customers,w
 
 [auth]
 redirect_urls = [
-  "https://example.com/auth/callback",
-  "https://example.com/auth/shopify/callback",
-  "https://example.com/api/auth/callback",
+  "https://cashflow-cod-production-2aff.up.railway.app/auth/callback",
+  "https://cashflow-cod-production-2aff.up.railway.app/auth/shopify/callback",
+  "https://cashflow-cod-production-2aff.up.railway.app/api/auth/callback",
 ]
 
 [webhooks]
@@ -35,13 +35,11 @@ uri = "/webhooks/app/scopes_update"
 topics = ["shop/update"]
 uri = "/webhooks/shop/update"
 
-[[webhooks.subscriptions]]
-topics = ["customers/data_request", "customers/redact", "shop/redact"]
-uri = "/webhooks/gdpr"
-compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+[webhooks.privacy_compliance]
+customer_data_request_url = "https://cashflow-cod-production-2aff.up.railway.app/webhooks/gdpr"
+customer_deletion_url = "https://cashflow-cod-production-2aff.up.railway.app/webhooks/gdpr"
+shop_deletion_url = "https://cashflow-cod-production-2aff.up.railway.app/webhooks/gdpr"
 
 [pos]
 embedded = false
 
-[build]
-include_config_on_deploy = true

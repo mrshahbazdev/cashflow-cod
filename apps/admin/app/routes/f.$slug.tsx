@@ -17,6 +17,15 @@ import {
 } from '../lib/landing-pages.server';
 import { resolvePack, isRtl } from '../lib/i18n.server';
 
+interface ProductInfo {
+  productId?: string;
+  productTitle?: string;
+  productImage?: string;
+  productVariantId?: string;
+  productVariantTitle?: string;
+  productPrice?: string;
+}
+
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const slug = params.slug;
   if (!slug) throw new Response('Not found', { status: 404 });
@@ -39,6 +48,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     utm_content: url.searchParams.get('utm_content'),
   };
 
+  const themeRaw = (page.theme ?? {}) as Record<string, unknown>;
+  const product: ProductInfo = {
+    productId: (themeRaw.productId as string) ?? undefined,
+    productTitle: (themeRaw.productTitle as string) ?? undefined,
+    productImage: (themeRaw.productImage as string) ?? undefined,
+    productVariantId: (themeRaw.productVariantId as string) ?? undefined,
+    productVariantTitle: (themeRaw.productVariantTitle as string) ?? undefined,
+    productPrice: (themeRaw.productPrice as string) ?? undefined,
+  };
+
   return json({
     page,
     lang,
@@ -46,11 +65,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     pack,
     utm,
     shopDomain: page.shop?.domain ?? '',
+    product,
   });
 };
 
 export default function LandingPage() {
-  const { page, rtl, pack, utm, shopDomain } = useLoaderData<typeof loader>();
+  const { page, rtl, pack, utm, shopDomain, product } = useLoaderData<typeof loader>();
   const theme = (page.theme ?? {}) as {
     backgroundColor?: string;
     textColor?: string;
@@ -77,6 +97,11 @@ export default function LandingPage() {
           .body{max-width:720px;margin:0 auto;padding:0 20px 24px}
           .cta{max-width:480px;margin:0 auto;padding:24px 20px}
           .cta button{background:${accent};color:#fff;border:none;padding:14px 28px;font-size:1rem;border-radius:6px;cursor:pointer;width:100%}
+          .product-card{max-width:480px;margin:0 auto 24px;padding:20px;border:1px solid #e5e7eb;border-radius:12px;text-align:center}
+          .product-card img{max-width:280px;width:100%;border-radius:8px;margin-bottom:16px}
+          .product-card h2{margin:0 0 4px;font-size:1.5rem;font-weight:700}
+          .product-card .variant{color:${fg};opacity:.6;font-size:0.95rem;margin:0 0 8px}
+          .product-card .price{font-size:1.25rem;font-weight:700;color:${accent};margin:0}
         `}</style>
       </head>
       <body>
@@ -85,6 +110,18 @@ export default function LandingPage() {
           <h1>{page.headline ?? page.title}</h1>
           {page.subheadline ? <p className="sub">{page.subheadline}</p> : null}
         </div>
+        {product.productId ? (
+          <div className="product-card">
+            {product.productImage ? (
+              <img src={product.productImage} alt={product.productTitle ?? ''} />
+            ) : null}
+            <h2>{product.productTitle}</h2>
+            {product.productVariantTitle ? (
+              <p className="variant">{product.productVariantTitle}</p>
+            ) : null}
+            {product.productPrice ? <p className="price">{product.productPrice}</p> : null}
+          </div>
+        ) : null}
         {page.bodyHtml ? (
           <div className="body" dangerouslySetInnerHTML={{ __html: page.bodyHtml }} />
         ) : null}
@@ -93,6 +130,8 @@ export default function LandingPage() {
             id="cashflow-cod-form"
             data-shop={shopDomain}
             data-form={page.form.slug}
+            data-product-id={product.productId ?? ''}
+            data-variant-id={product.productVariantId ?? ''}
             data-utm-source={utm.utm_source ?? ''}
             data-utm-medium={utm.utm_medium ?? ''}
             data-utm-campaign={utm.utm_campaign ?? ''}

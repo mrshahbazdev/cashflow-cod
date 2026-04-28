@@ -1,69 +1,89 @@
-import type { CourierAdapter, CourierBookingRequest, CourierBookingResult, CourierTrackingEvent } from '../index.js';
+import type { CourierAdapter, CourierBookingResult, CourierTrackingEvent } from '../index.js';
+import { mockBookingResult, mockTrackingEvents } from './_mock.js';
 
 /**
- * ShipRocket (India) adapter.
+ * Shiprocket (India) adapter using the v1 OAuth API.
+ * Required credentials:
+ *   - email + password (we exchange for a bearer token at booking time)
+ *   - pickupLocation (must already exist on the merchant's Shiprocket account)
  * API docs: https://apidocs.shiprocket.in
- * Credentials: email, password (used to fetch a bearer token), pickupLocation (nickname), optional token.
- * Falls back to deterministic mock when credentials missing or mode=mock.
  */
+async function getToken(creds: Record<string, string>): Promise<string | null> {
+  if (!creds.email || !creds.password) return null;
+  try {
+    const resp = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: creds.email, password: creds.password }),
+    });
+    const json = (await resp.json()) as { token?: string };
+    return json.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const shiprocketAdapter: CourierAdapter = {
   code: 'shiprocket',
-  displayName: 'ShipRocket (India)',
+  displayName: 'Shiprocket',
   regions: ['IN'],
 
   async book(credentials, req): Promise<CourierBookingResult> {
-    if (credentials.mode === 'mock' || (!credentials.token && (!credentials.email || !credentials.password))) {
-      return mockResult(req, 'SR');
+    if (credentials.mode === 'mock' || !credentials.email) {
+      return mockBookingResult(req, 'shiprocket');
     }
+    const token = await getToken(credentials);
+    if (!token) return { consignmentNumber: '', status: 'failed', raw: { error: 'auth_failed' } };
+
+    const body = {
+      order_id: req.orderId,
+      order_date: new Date().toISOString().slice(0, 10),
+      pickup_location: credentials.pickupLocation || 'Primary',
+      billing_customer_name: req.customerName,
+      billing_address: req.addressLine1,
+      billing_address_2: req.addressLine2 ?? '',
+      billing_city: req.city,
+      billing_pincode: req.postalCode ?? '',
+      billing_country: 'India',
+      billing_state: credentials.billingState ?? '',
+      billing_email: '',
+      billing_phone: req.phone,
+      shipping_is_billing: true,
+      order_items: [
+        {
+          name: req.notes ?? 'COD order',
+          sku: req.orderId,
+          units: 1,
+          selling_price: req.amount,
+        },
+      ],
+      payment_method: 'COD',
+      sub_total: req.amount,
+      length: 10,
+      breadth: 10,
+      height: 10,
+      weight: req.weightKg ?? 0.5,
+    };
+
     try {
-      const token = credentials.token || (await authenticate(credentials.email!, credentials.password!));
-      if (!token) return { consignmentNumber: '', status: 'failed', raw: { error: 'auth_failed' } };
-
-      const body = {
-        order_id: req.orderId,
-        order_date: new Date().toISOString().slice(0, 10),
-        pickup_location: credentials.pickupLocation || 'Primary',
-        billing_customer_name: req.customerName,
-        billing_last_name: '',
-        billing_address: req.addressLine1,
-        billing_address_2: req.addressLine2 || '',
-        billing_city: req.city,
-        billing_pincode: req.postalCode || '000000',
-        billing_state: credentials.state || '',
-        billing_country: 'India',
-        billing_email: 'buyer@example.com',
-        billing_phone: req.phone,
-        shipping_is_billing: true,
-        order_items: [
-          { name: req.notes || 'COD Order', sku: req.orderId, units: 1, selling_price: req.amount },
-        ],
-        payment_method: 'COD',
-        sub_total: req.amount,
-        length: 10,
-        breadth: 10,
-        height: 10,
-        weight: req.weightKg ?? 0.5,
-      };
-
       const resp = await fetch('https://apiv2.shiprocket.in/v1/external/orders/create/adhoc', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(body),
       });
       const json = (await resp.json()) as {
-        order_id?: string;
-        shipment_id?: string;
+        order_id?: number;
+        shipment_id?: number;
         awb_code?: string;
-        status?: string;
       };
-      const awb = json.awb_code || json.shipment_id || '';
-      if (!awb) return { consignmentNumber: '', status: 'failed', raw: json };
+      const cn = json.awb_code || (json.shipment_id ? String(json.shipment_id) : '');
+      if (!cn) return { consignmentNumber: '', status: 'pending', raw: json };
       return {
-        consignmentNumber: awb,
-        trackingUrl: `https://shiprocket.co/tracking/${awb}`,
+        consignmentNumber: cn,
+        trackingUrl: `https://shiprocket.co/tracking/${cn}`,
         status: 'booked',
         raw: json,
       };
@@ -73,59 +93,31 @@ export const shiprocketAdapter: CourierAdapter = {
   },
 
   async track(credentials, consignmentNumber): Promise<CourierTrackingEvent[]> {
-    if (credentials.mode === 'mock' || (!credentials.token && (!credentials.email || !credentials.password))) {
-      return mockTrack();
-    }
+    if (credentials.mode === 'mock' || !credentials.email) return mockTrackingEvents();
+    const token = await getToken(credentials);
+    if (!token) return [];
     try {
-      const token = credentials.token || (await authenticate(credentials.email!, credentials.password!));
-      if (!token) return [];
       const resp = await fetch(
-        `https://apiv2.shiprocket.in/v1/external/courier/track/awb/${consignmentNumber}`,
+        `https://apiv2.shiprocket.in/v1/external/courier/track/awb/${encodeURIComponent(consignmentNumber)}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       const json = (await resp.json()) as {
         tracking_data?: {
-          shipment_track_activities?: Array<{ date: string; activity: string; location?: string }>;
+          shipment_track_activities?: Array<{
+            date?: string;
+            activity?: string;
+            location?: string;
+          }>;
         };
       };
-      return (json.tracking_data?.shipment_track_activities ?? []).map((e) => ({
-        status: e.activity,
-        occurredAt: e.date,
+      const events = json.tracking_data?.shipment_track_activities ?? [];
+      return events.map((e) => ({
+        status: e.activity ?? 'Update',
         location: e.location,
+        occurredAt: e.date ?? new Date().toISOString(),
       }));
     } catch {
       return [];
     }
   },
 };
-
-async function authenticate(email: string, password: string): Promise<string | null> {
-  try {
-    const resp = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const json = (await resp.json()) as { token?: string };
-    return json.token ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function mockResult(req: CourierBookingRequest, prefix: string): CourierBookingResult {
-  const cn = `${prefix}-${req.orderId.slice(-6).toUpperCase()}`;
-  return {
-    consignmentNumber: cn,
-    trackingUrl: `https://example.com/track/${cn}`,
-    status: 'booked',
-    raw: { mock: true },
-  };
-}
-
-function mockTrack(): CourierTrackingEvent[] {
-  return [
-    { status: 'Booked', occurredAt: new Date().toISOString() },
-    { status: 'Picked Up', occurredAt: new Date(Date.now() - 3600e3).toISOString() },
-  ];
-}

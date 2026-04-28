@@ -2,10 +2,11 @@ import type { ActionFunctionArgs } from '@remix-run/node';
 import { json } from '@remix-run/node';
 import { formSchema } from '@cashflow-cod/form-schema';
 import prisma from '../db.server';
-import { preflight, withCors } from '../lib/cors.server';
+import { postOnlyLoader, preflight, withCors } from '../lib/cors.server';
+import { resolveFormSlug } from '../lib/forms.server';
 import { submitForOrder } from '../lib/submissions.server';
 
-export const loader = async () => withCors(json({ error: 'Method not allowed' }, { status: 405 }));
+export const loader = postOnlyLoader;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === 'OPTIONS') return preflight();
@@ -21,6 +22,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     abVariant?: string | null;
     productId?: string | null;
     variantId?: string | null;
+    tracking?: {
+      fbp?: string;
+      fbc?: string;
+      ttclid?: string;
+      ttp?: string;
+      scClickId?: string;
+      epik?: string;
+      sourceUrl?: string;
+    };
+    discountCode?: string | null;
+    cartSubtotal?: number;
+    quantity?: number;
+    unitPrice?: number;
+    items?: Array<{
+      productId: string;
+      variantId: string;
+      quantity: number;
+      title?: string;
+      price?: number;
+    }>;
   };
   try {
     body = await request.json();
@@ -33,8 +54,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(json({ error: 'Missing required fields' }, { status: 400 }));
   }
 
+  const resolvedSlug = await resolveFormSlug(shop, formSlug);
   const form = await prisma.form.findFirst({
-    where: { slug: formSlug, shop: { domain: shop }, isActive: true },
+    where: { slug: resolvedSlug, shop: { domain: shop }, isActive: true },
     include: { shop: true },
   });
   if (!form) {
@@ -61,6 +83,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       abVariant: body.abVariant ?? null,
       productId: body.productId ?? null,
       variantId: body.variantId ?? null,
+      tracking: body.tracking ? { ...body.tracking, ip, userAgent } : { ip, userAgent },
+      discountCode: body.discountCode ?? null,
+      cartSubtotal: body.cartSubtotal,
+      quantity: body.quantity,
+      unitPrice: body.unitPrice,
+      items: body.items,
     });
     return withCors(json(result));
   } catch (err) {

@@ -45,7 +45,30 @@ export function generateOtp(length = 6): string {
   return String(Math.floor(min + Math.random() * (max - min)));
 }
 
+// SMS / WhatsApp adapters
 export { consoleAdapter } from './adapters/console.js';
 export { twilioAdapter } from './adapters/twilio.js';
-export { twilioVoiceAdapter } from './voice.js';
+export { dialog360Adapter } from './adapters/dialog360.js';
+
+// Voice adapters (A + B + C pipeline)
+export {
+  twilioVoiceAdapter,
+  elevenLabsTwilioVoiceAdapter,
+} from './voice.js';
 export type { VoiceAdapter, PlaceCallRequest, PlaceCallResult } from './voice.js';
+
+// Option B — ElevenLabs standalone TTS
+export { synthesizeSpeech, synthesizeToUrl } from './adapters/elevenlabs.js';
+export type { ElevenLabsTTSRequest, ElevenLabsTTSResult } from './adapters/elevenlabs.js';
+
+// Option C — AI conversational agents
+export { retellVoiceAdapter } from './adapters/retell.js';
+export { openaiRealtimeVoiceAdapter } from './adapters/openai-realtime.js';
+
+import { consoleAdapter } from './adapters/console.js';
+import { twilioAdapter } from './adapters/twilio.js';
+import { dialog360Adapter } from './adapters/dialog360.js';
+
+messagingRegistry.register(consoleAdapter);
+messagingRegistry.register(twilioAdapter);
+messagingRegistry.register(dialog360Adapter);

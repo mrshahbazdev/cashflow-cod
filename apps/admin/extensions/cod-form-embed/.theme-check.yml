@@ -1,0 +1,11 @@
+# Shopify theme-check overrides for the COD form theme app extension.
+# The widget bundle is intentionally larger than the default 10 KB
+# threshold because it ships the full popup/inline/floating runtime
+# (rendering, OTP, discount codes, multi-step, multi-language, etc.)
+# in a single file so the storefront only loads one asset.
+AssetSizeAppBlockJavaScript:
+  threshold_in_bytes: 200000
+AssetSizeAppBlockCSS:
+  threshold_in_bytes: 100000
+UnusedAssign:
+  enabled: false

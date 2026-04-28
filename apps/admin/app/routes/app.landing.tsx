@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from '@remix-run/node';
 import { json, redirect } from '@remix-run/node';
 import { Form as RemixForm, useLoaderData } from '@remix-run/react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Badge,
   BlockStack,
@@ -15,6 +15,7 @@ import {
   Select,
   Text,
   TextField,
+  Thumbnail,
 } from '@shopify/polaris';
 import { authenticate } from '../shopify.server';
 import { getShopByDomain } from '../lib/install.server';
@@ -25,6 +26,15 @@ import {
   updateLandingPage,
 } from '../lib/landing-pages.server';
 import prisma from '../db.server';
+
+interface SelectedProduct {
+  id: string;
+  title: string;
+  image?: string;
+  variantId?: string;
+  variantTitle?: string;
+  price?: string;
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -51,8 +61,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const slug = String(body.get('slug') ?? '').trim();
     const title = String(body.get('title') ?? 'Untitled page');
     const headline = String(body.get('headline') ?? '');
+    const productJson = String(body.get('product') ?? '');
+    let product: SelectedProduct | null = null;
+    try {
+      if (productJson) product = JSON.parse(productJson);
+    } catch {
+      /* ignore invalid json */
+    }
     if (!formId || !slug) {
       return json({ error: 'Form and slug required' }, { status: 400 });
+    }
+    const theme: Record<string, unknown> = {};
+    if (product) {
+      theme.productId = product.id;
+      theme.productTitle = product.title;
+      theme.productImage = product.image;
+      theme.productVariantId = product.variantId;
+      theme.productVariantTitle = product.variantTitle;
+      theme.productPrice = product.price;
     }
     await createLandingPage({
       shopId: shop.id,
@@ -61,6 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       title,
       headline: headline || undefined,
       isPublished: true,
+      theme: Object.keys(theme).length > 0 ? theme : undefined,
     });
   } else if (intent === 'publish') {
     const id = String(body.get('id') ?? '');
@@ -81,15 +108,61 @@ export default function LandingRoute() {
   const [slug, setSlug] = useState('');
   const [title, setTitle] = useState('');
   const [headline, setHeadline] = useState('');
+  const [product, setProduct] = useState<SelectedProduct | null>(null);
 
-  const rows = pages.map((p) => {
+  const openProductPicker = useCallback(async () => {
+    try {
+      const selected = await (window as any).shopify.resourcePicker({
+        type: 'product',
+        multiple: false,
+        action: 'select',
+        filter: { variants: true },
+      });
+      if (selected && selected.length > 0) {
+        const p = selected[0];
+        const variant = p.variants?.[0];
+        setProduct({
+          id: String(p.id),
+          title: p.title,
+          image: p.images?.[0]?.originalSrc ?? p.images?.[0]?.src ?? undefined,
+          variantId: variant ? String(variant.id) : undefined,
+          variantTitle: variant?.title !== 'Default Title' ? variant?.title : undefined,
+          price: variant?.price ?? undefined,
+        });
+      }
+    } catch {
+      /* user cancelled picker */
+    }
+  }, []);
+
+  const clearProduct = useCallback(() => {
+    setProduct(null);
+  }, []);
+
+  const productTheme = (p: any): SelectedProduct | null => {
+    const t = (p.theme ?? {}) as Record<string, any>;
+    if (!t.productId) return null;
+    return {
+      id: t.productId,
+      title: t.productTitle ?? '',
+      image: t.productImage,
+      variantId: t.productVariantId,
+      variantTitle: t.productVariantTitle,
+      price: t.productPrice,
+    };
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = pages.map((p: any) => {
     const rate = p.views === 0 ? 0 : p.conversions / p.views;
+    const prod = productTheme(p);
     return [
       <a key={p.id} href={`/f/${p.slug}`} target="_blank" rel="noreferrer">
         {p.slug}
       </a>,
       p.title,
       p.form?.name ?? '—',
+      prod ? prod.title : '—',
       <Badge key={`s-${p.id}`} tone={p.isPublished ? 'success' : undefined}>
         {p.isPublished ? 'Published' : 'Draft'}
       </Badge>,
@@ -133,12 +206,13 @@ export default function LandingRoute() {
               </Text>
               <RemixForm method="post">
                 <input type="hidden" name="intent" value="create" />
+                <input type="hidden" name="product" value={product ? JSON.stringify(product) : ''} />
                 <BlockStack gap="300">
                   <InlineStack gap="300" align="start" blockAlign="end">
                     <Select
                       label="Form"
                       name="formId"
-                      options={forms.map((f) => ({ label: f.name, value: f.id }))}
+                      options={forms.map((f: any) => ({ label: f.name, value: f.id }))}
                       value={formId}
                       onChange={setFormId}
                     />
@@ -168,6 +242,40 @@ export default function LandingRoute() {
                     autoComplete="off"
                     placeholder="50% off — today only"
                   />
+                  <BlockStack gap="200">
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">
+                      Product
+                    </Text>
+                    {product ? (
+                      <InlineStack gap="300" blockAlign="center">
+                        {product.image ? (
+                          <Thumbnail source={product.image} alt={product.title} size="small" />
+                        ) : null}
+                        <BlockStack gap="100">
+                          <Text as="span" variant="bodyMd" fontWeight="semibold">
+                            {product.title}
+                          </Text>
+                          {product.variantTitle ? (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {product.variantTitle}
+                            </Text>
+                          ) : null}
+                          {product.price ? (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {product.price}
+                            </Text>
+                          ) : null}
+                        </BlockStack>
+                        <Button onClick={clearProduct} variant="plain" tone="critical">
+                          Remove
+                        </Button>
+                      </InlineStack>
+                    ) : (
+                      <Button onClick={openProductPicker} variant="secondary">
+                        Select product
+                      </Button>
+                    )}
+                  </BlockStack>
                   <InlineStack align="end">
                     <Button submit variant="primary" disabled={!formId || !slug}>
                       Create page
@@ -195,6 +303,7 @@ export default function LandingRoute() {
                   'text',
                   'text',
                   'text',
+                  'text',
                   'numeric',
                   'numeric',
                   'numeric',
@@ -204,6 +313,7 @@ export default function LandingRoute() {
                   'Slug',
                   'Title',
                   'Form',
+                  'Product',
                   'Status',
                   'Views',
                   'Conversions',

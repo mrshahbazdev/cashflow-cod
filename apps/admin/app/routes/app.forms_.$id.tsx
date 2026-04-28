@@ -250,6 +250,14 @@ export default function FormBuilderRoute() {
         }}
         secondaryActions={[
           {
+            content: 'Preview',
+            url: `/app/forms/${initial.id}/preview`,
+          },
+          {
+            content: 'Embed snippets',
+            url: `/app/forms/${initial.id}/embed`,
+          },
+          {
             content: 'Delete',
             destructive: true,
             onAction: () => {
@@ -353,6 +361,47 @@ export default function FormBuilderRoute() {
                     onChange={(v) => updateSchema({ ...schema, legalText: v })}
                     autoComplete="off"
                     multiline={2}
+                  />
+                  <Checkbox
+                    label="Allow customers to enter a discount code"
+                    checked={schema.allowDiscountCode !== false}
+                    onChange={(v) => updateSchema({ ...schema, allowDiscountCode: v })}
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">
+                    Custom CSS &amp; HTML
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Tweak the storefront widget&rsquo;s look with scoped CSS and inject extra markup
+                    above / below the form. <code>&lt;script&gt;</code> tags are stripped from HTML
+                    before render.
+                  </Text>
+                  <TextField
+                    label="Custom CSS (scoped to .cashflow-cod-widget)"
+                    value={schema.customCss ?? ''}
+                    onChange={(v) => updateSchema({ ...schema, customCss: v || undefined })}
+                    autoComplete="off"
+                    multiline={6}
+                    placeholder=".cashflow-cod-submit { background: #f43f5e; }"
+                  />
+                  <TextField
+                    label="HTML before the form"
+                    value={schema.customHtmlHeader ?? ''}
+                    onChange={(v) => updateSchema({ ...schema, customHtmlHeader: v || undefined })}
+                    autoComplete="off"
+                    multiline={4}
+                    placeholder="<div class='trust-row'>Free delivery · 7-day returns</div>"
+                  />
+                  <TextField
+                    label="HTML after the form"
+                    value={schema.customHtmlFooter ?? ''}
+                    onChange={(v) => updateSchema({ ...schema, customHtmlFooter: v || undefined })}
+                    autoComplete="off"
+                    multiline={4}
                   />
                 </BlockStack>
               </Card>

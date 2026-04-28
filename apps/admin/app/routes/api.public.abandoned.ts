@@ -3,15 +3,30 @@ import { z } from 'zod';
 import prisma from '../db.server';
 import { corsHeaders, handleOptions } from '../lib/cors.server';
 import { recordAbandonment } from '../lib/abandoned.server';
+import { resolveFormSlug } from '../lib/forms.server';
+
+// Storefront widget sends empty optional fields as `null` (rather than
+// omitting the key) — accept null and empty string as "absent".
+const optionalString = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (v == null || v === '' ? undefined : v));
+
+const optionalEmail = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((v) => (v == null || v === '' ? undefined : v))
+  .refine(
+    (v) => v === undefined || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+    { message: 'Invalid email' },
+  );
 
 const bodySchema = z.object({
   formSlug: z.string(),
   shop: z.string(),
   visitorId: z.string().min(1),
-  phone: z.string().optional(),
-  email: z.string().email().optional(),
+  phone: optionalString,
+  email: optionalEmail,
   partialData: z.record(z.unknown()).default({}),
-  lastStep: z.string().optional(),
+  lastStep: optionalString,
 });
 
 export async function loader({ request }: ActionFunctionArgs) {
@@ -41,8 +56,9 @@ export async function action({ request }: ActionFunctionArgs) {
       headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },
     });
   }
+  const resolvedSlug = await resolveFormSlug(body.shop, body.formSlug);
   const form = await prisma.form.findFirst({
-    where: { shopId: shop.id, slug: body.formSlug },
+    where: { shopId: shop.id, slug: resolvedSlug },
     select: { id: true },
   });
   if (!form) {

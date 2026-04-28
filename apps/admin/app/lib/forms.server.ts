@@ -25,10 +25,43 @@ export async function getForm(shopId: string, id: string) {
   return prisma.form.findFirst({ where: { id, shopId } });
 }
 
+/**
+ * Resolve the magic 'default' slug to a real form slug:
+ *   1. settings.defaultFormSlug (chosen via /app/settings)
+ *   2. fall back to the most recently updated active form on the shop
+ *   3. if neither resolves, return the original 'default' (caller will 404)
+ *
+ * For any non-'default' slug, returns the input unchanged. This lets every
+ * public API endpoint (form fetch, submissions, OTP, abandonment recovery,
+ * upsells) accept 'default' without each route reimplementing the logic.
+ */
+export async function resolveFormSlug(shopDomain: string, slug: string): Promise<string> {
+  if (slug !== 'default') return slug;
+  const shop = await prisma.shop.findUnique({
+    where: { domain: shopDomain },
+    select: { id: true, settings: true },
+  });
+  const settings = (shop?.settings as Record<string, unknown> | null) ?? {};
+  const configured =
+    typeof settings.defaultFormSlug === 'string' && settings.defaultFormSlug.length > 0
+      ? settings.defaultFormSlug
+      : null;
+  if (configured) return configured;
+  if (!shop) return slug;
+  const fallback = await prisma.form.findFirst({
+    where: { shopId: shop.id, isActive: true },
+    orderBy: { updatedAt: 'desc' },
+    select: { slug: true },
+  });
+  return fallback?.slug ?? slug;
+}
+
 export async function getFormBySlug(shopDomain: string, slug: string) {
-  return prisma.form.findFirst({
+  const resolvedSlug = await resolveFormSlug(shopDomain, slug);
+
+  const form = await prisma.form.findFirst({
     where: {
-      slug,
+      slug: resolvedSlug,
       shop: { domain: shopDomain },
       isActive: true,
     },
@@ -39,8 +72,48 @@ export async function getFormBySlug(shopDomain: string, slug: string) {
       layout: true,
       placement: true,
       schema: true,
+      shop: {
+        select: {
+          defaultLanguage: true,
+          enabledLanguages: true,
+          settings: true,
+        },
+      },
     },
   });
+  if (!form) return null;
+  const settings = (form.shop?.settings as Record<string, unknown> | null) ?? {};
+  // Strip server-only secrets before returning to the public widget. We keep
+  // the publishable Google Places key here because Google enforces HTTP
+  // referrer restrictions on the key itself.
+  const placesKey = typeof settings.googlePlacesKey === 'string' ? settings.googlePlacesKey : null;
+  return {
+    ...form,
+    shop: undefined,
+    i18n: {
+      defaultLanguage: form.shop?.defaultLanguage ?? 'en',
+      enabledLanguages: (form.shop?.enabledLanguages as string[] | null) ?? ['en'],
+    },
+    currency: {
+      base: typeof settings.currency === 'string' ? settings.currency : 'USD',
+      enabled:
+        Array.isArray(settings.enabledCurrencies) &&
+        settings.enabledCurrencies.every((s) => typeof s === 'string')
+          ? (settings.enabledCurrencies as string[])
+          : [typeof settings.currency === 'string' ? settings.currency : 'USD'],
+      locale: typeof settings.locale === 'string' ? settings.locale : null,
+    },
+    places: placesKey
+      ? {
+          enabled: true,
+          publishableKey: placesKey,
+          countries:
+            typeof settings.googlePlacesCountries === 'string'
+              ? settings.googlePlacesCountries
+              : null,
+        }
+      : { enabled: false, publishableKey: null, countries: null },
+  };
 }
 
 function slugify(input: string) {

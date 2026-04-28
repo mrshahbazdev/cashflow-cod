@@ -35,10 +35,14 @@ export default function AppLayout() {
         <Link to="/app/groups">Merchant groups</Link>
         <Link to="/app/templates">Templates</Link>
         <Link to="/app/inbox">Inbox</Link>
+        <Link to="/app/form-analytics">Form analytics</Link>
         <Link to="/app/ab-tests">A/B tests</Link>
         <Link to="/app/landing">Landing pages</Link>
         <Link to="/app/payments">Payments</Link>
         <Link to="/app/i18n">Languages</Link>
+        <Link to="/app/currency">Currency</Link>
+        <Link to="/app/places">Address autocomplete</Link>
+        <Link to="/app/address">Address validation</Link>
         <Link to="/app/shipping">Shipping</Link>
         <Link to="/app/segments">Segments</Link>
         <Link to="/app/broadcasts">Broadcasts</Link>

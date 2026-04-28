@@ -35,7 +35,12 @@ export type CourierCode =
   | 'daewoo'
   | 'aramex'
   | 'shiprocket'
+  | 'delhivery'
+  | 'bluedart'
   | 'dhl'
+  | 'fedex'
+  | 'ups'
+  | 'sendcloud'
   | 'custom';
 
 export type MessagingProvider =
