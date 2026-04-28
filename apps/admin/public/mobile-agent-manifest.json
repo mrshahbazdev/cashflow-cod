@@ -1,0 +1,26 @@
+{
+  "name": "Cashflow COD — Agent",
+  "short_name": "COD Agent",
+  "description": "Phone-first call-center agent app for Cashflow COD order verification.",
+  "start_url": "/mobile/agent",
+  "scope": "/mobile/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "/mobile-agent-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/mobile-agent-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}

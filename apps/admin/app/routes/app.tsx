@@ -44,6 +44,9 @@ export default function AppLayout() {
         <Link to="/app/places">Address autocomplete</Link>
         <Link to="/app/address">Address validation</Link>
         <Link to="/app/shipping">Shipping</Link>
+        <Link to="/app/segments">Segments</Link>
+        <Link to="/app/broadcasts">Broadcasts</Link>
+        <Link to="/app/email-integrations">Email integrations</Link>
         <Link to="/app/integrations">Integrations</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>

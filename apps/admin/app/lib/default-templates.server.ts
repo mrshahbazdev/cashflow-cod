@@ -13,7 +13,7 @@ import prisma from '../db.server';
 interface DefaultTemplate {
   slug: string;
   name: string;
-  category: 'apparel' | 'electronics' | 'food' | 'services' | 'pharmacy' | 'general';
+  category: 'apparel' | 'electronics' | 'food' | 'services' | 'pharmacy' | 'general' | 'beauty';
   region?: 'PK' | 'IN' | 'MENA' | 'EU' | 'SEA' | 'GLOBAL';
   language: string;
   description: string;
